@@ -112,6 +112,10 @@ async function groqChat(
     error?: { code?: string; message?: string }
   }
   if (!res.ok) {
+    // 401/403 con la clave guardada: el remedio es repegar la clave, no revisar el código. El hallazgo
+    // en producción (6-oct) fue exactamente este caso: clave Groq guardada el 28-sep revocada — sin
+    // este mensaje, la pantalla enseñaba un "Invalid API Key" crudo del proveedor.
+    if (res.status === 401 || res.status === 403) throw new Error(CLAVE_GROQ_INVALIDA)
     const mensaje = body.error?.message || `Groq respondió ${res.status}`
     const err = new Error(mensaje) as Error & { modeloNoDisponible?: boolean }
     if (esModeloNoDisponible(res.status, `${body.error?.code ?? ''} ${mensaje}`)) err.modeloNoDisponible = true
@@ -135,21 +139,34 @@ export type GroqTextoParams = {
 }
 
 /**
+ * Mensaje para la clave Groq rechazada por el proveedor. Un remedio concreto (regenerar y repegar)
+ * en vez del error crudo de la API: la clave está guardada en la pantalla, el fallo no se arregla
+ * mirando el código.
+ */
+const CLAVE_GROQ_INVALIDA =
+  'La clave de Groq de esta subcuenta no es válida (la API la rechazó). Regenera la clave en console.groq.com y pégala de nuevo en Ajustes › Integraciones.'
+
+/**
  * Texto por Groq con el modelo que DE VERDAD existe: se pregunta al proveedor (mismo patrón que el
  * resto de la app, lib/ai/modelos.ts) en vez de llamar a un ID fijo que el proveedor puede retirar.
  * Solo se consulta la lista cuando Groq es quien atiende la petición, así que no añade latencia al
  * camino normal.
  */
 export async function groqTexto(p: GroqTextoParams): Promise<{ text: string; model: string }> {
-  const { listarModelos, resolverModelo } = await import('@/lib/ai/modelos')
+  const { listarModelos, resolverModelo, ModelosError } = await import('@/lib/ai/modelos')
   const preferidos = p.smart ? TEXTO_SMART_PREFERIDOS : TEXTO_FAST_PREFERIDOS
   let model: string | null
   try {
     const modelos = await listarModelos(p.apiKey, 'https://api.groq.com/openai/v1')
     model = resolverModelo(undefined, modelos, preferidos).modelo
-  } catch {
-    // Si la lista no se pudo consultar (red lenta, rate limit) se intenta igualmente el preferido:
-    // un fallo del catálogo no debe tumbar una tarea que el propio proveedor sí puede servir.
+  } catch (e) {
+    // Si la lista no se pudo consultar por red lenta o rate limit, se intenta igualmente el
+    // preferido: un fallo del catálogo no debe tumbar una tarea que el proveedor sí puede servir.
+    // Una clave que el proveedor RECHAZA, en cambio, también fallará el chat: se dice ya y con el
+    // remedio concreto en vez de gastar la segunda llamada.
+    if (e instanceof ModelosError && (e.code === 'token_invalido' || e.code === 'sin_credenciales')) {
+      throw new Error(CLAVE_GROQ_INVALIDA)
+    }
     model = preferidos[0]
   }
   if (!model) throw new Error('Groq no devolvió ningún modelo de texto disponible')

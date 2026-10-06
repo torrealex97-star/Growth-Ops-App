@@ -1,4 +1,4 @@
-## IA: relevo de motores — toda función de IA funciona con cualquier IA conectada — 6-oct-2026 (en revisión)
+## IA: relevo de motores — toda función de IA funciona con cualquier IA conectada — 6-oct-2026 (PR #387 fusionada, desplegada y verificada; pulido de 401 en #388)
 
 - Rama `feat/ia-relevo-motores` desde `origin/main` (`dfd1dfe`).
 - Petición de Alex: ninguna función de IA debe esperar por Anthropic; los modelos potentes para tareas
@@ -22,8 +22,15 @@
   estructurales de `ai-engine.test.mjs` reescritos a la regla nueva. Gate: prettier, eslint, tsc,
   1418/1422 unitarias (único fallo: apify ambiental preexistente en main), 783/783 métricas, build
   PASS. knip/dead-code no corre local (EPERM del sandbox con worktrees); lo cubre el CI del PR.
-- Pendiente tras merge: verificación en producción — la subcuenta tiene DeepSeek + Groq: probar
-  análisis de factura en imagen (vía Groq visión) y en PDF (vía texto + DeepSeek).
+- **Merge, deploy y verificación en producción (6-oct):** PR #387 fusionada (`75ba98c`, CI success
+  completo incluido knip/dead-code), deploy production READY (`dpl_BdvgP7JG`). Verificado contra el
+  proveedor con las claves de la subcuenta (descifradas en memoria, sin imprimirlas):
+  **DeepSeek HTTP 200** con `deepseek-flash` y `deepseek-v4-pro` disponibles (los preferidos existen
+  de verdad) → texto y facturas en PDF funcionan con el relevo sin Anthropic. **Groq HTTP 401**: la
+  clave guardada el 28-sep está revocada — la visión para imágenes de facturas dará el error
+  accionable nuevo («Regenera la clave y pégala en Ajustes › Integraciones») hasta que Alex la
+  repegue, como META_APP_SECRET/RESEND/YOUTUBE. Pendiente de Alex: repegar clave Groq (y probar
+  «analizar factura» en imagen y PDF una vez hecha).
 
 ## Fase 1 — cron sequra per-tenant y planificadores reales, 6-oct-2026 (PR #385)
 
@@ -2397,12 +2404,11 @@ suscripción). La venta sin closer del 3-oct sigue requiriendo corrección manua
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                | Rama                        | Toca                                                                                                                                                | Desde |
-| ----------- | ---------------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| Freebuff    | Relevo de motores de IA (texto y visión) para funcionar con cualquier IA conectada | `feat/ia-relevo-motores`    | `lib/ai/provider.ts`, `lib/ai/claude.ts`, `lib/ai/groq.ts`, `lib/ai/pdf.ts`, `tests/ia-relevo.test.mjs`, `tests/ai-engine.test.mjs`, `package.json` | 6-oct |
-| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327)              | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones                                                                                        | 3-oct |
-| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)                       | `codex/reservation-refunds` | ventas/cobros (según su rama)                                                                                                                       | 3-oct |
-| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún                          | —                           | `docs/plan/`, migraciones RLS                                                                                                                       | 3-oct |
+| Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
+| ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 
