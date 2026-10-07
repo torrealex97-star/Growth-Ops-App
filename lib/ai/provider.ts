@@ -67,6 +67,17 @@ export const DEEPSEEK_MODELOS_PREFERIDOS = ['deepseek-flash', 'deepseek-v4-pro']
 /** Último recurso si no se pudo consultar la lista de modelos. */
 export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-flash'
 
+/**
+ * deepseek-flash / deepseek-v4-pro son modelos de RAZONAMIENTO: los tokens de razonamiento
+ * cuentan dentro de completion_tokens/max_tokens. Medido en producción (7-oct): con el cap que
+ * piden las llamadas (p. ej. 700 para el JSON de una factura), el razonamiento agota el
+ * presupuesto y `content` llega VACÍO con finish_reason "length" (2.437 caracteres de
+ * razonamiento, 0 de respuesta) — la factura parecía "sin análisis" cuando el modelo sí estaba
+ * trabajando y el relevo caía al siguiente motor con una clave revocada. El cap no fuerza
+ * generación: solo deja sitio a que la respuesta exista; el coste no sube cuando es corta.
+ */
+export const PRESUPUESTO_MINIMO_DEEPSEEK = 8192
+
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
 
 export type AiEnv = Record<string, string | undefined>
@@ -167,14 +178,14 @@ async function deepseekConversation(req: ConversationRequest, env: AiEnv): Promi
     },
     body: JSON.stringify({
       model,
-      max_tokens: req.maxTokens,
+      max_tokens: Math.max(req.maxTokens, PRESUPUESTO_MINIMO_DEEPSEEK),
       temperature: req.temperature,
       messages: [{ role: 'system', content: req.system }, ...req.messages],
     }),
     signal: AbortSignal.timeout(45_000),
   })
   const body = (await response.json().catch(() => ({}))) as {
-    choices?: { message?: { content?: string } }[]
+    choices?: { message?: { content?: string }; finish_reason?: string }[]
     error?: { message?: string }
   }
   if (!response.ok) {
@@ -182,8 +193,16 @@ async function deepseekConversation(req: ConversationRequest, env: AiEnv): Promi
   }
   const text = body.choices?.[0]?.message?.content ?? ''
   // Una respuesta vacía NO es un resultado: quien llama espera JSON y parsearía "" como un fallo
-  // confuso. Se trata como error para que el repuesto pueda entrar.
-  if (!text.trim()) throw new Error('DeepSeek devolvió una respuesta vacía')
+  // confuso. Se trata como error para que el repuesto pueda entrar. Con finish_reason "length"
+  // el corte fue por presupuesto (razonamiento), no un fallo del modelo: se dice, no se disimula.
+  if (!text.trim()) {
+    const cortadoPorPresupuesto = body.choices?.[0]?.finish_reason === 'length'
+    throw new Error(
+      cortadoPorPresupuesto
+        ? 'DeepSeek agotó el presupuesto de respuesta antes de escribir el resultado (razonamiento extenso).'
+        : 'DeepSeek devolvió una respuesta vacía'
+    )
+  }
   return { text, engine: 'deepseek', model }
 }
 

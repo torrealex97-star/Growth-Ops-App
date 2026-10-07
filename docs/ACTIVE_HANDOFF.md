@@ -1,3 +1,26 @@
+## DeepSeek: presupuesto de razonamiento — cerrado, 7-oct-2026 (Freebuff)
+
+- **Reclamación:** `lib/ai/provider.ts` (`deepseekConversation`), `tests/ia-relevo.test.mjs` y esta
+  sección. Unidad única, rama corta, un PR.
+- **Diagnóstico medido con la clave real de la subcuenta (7-oct):** `deepseek-flash` razona ANTES
+  de responder y ese razonamiento cuenta dentro de `max_tokens`. Con el cap que manda la app (700
+  en facturas PDF), el razonamiento agotó el presupuesto y `content` llegó VACÍO con
+  `finish_reason: "length"` (2.437 caracteres de razonamiento, 0 de respuesta) → "respuesta vacía"
+  → relevo a Groq (revocada) → el análisis de facturas fallaba en produccion SIN haber fallado el
+  modelo. Afectaba a toda llamada de texto con cap bajo (facturas PDF, y cualquier tarea futura
+  con cap apretado).
+- **Fix:** `PRESUPUESTO_MINIMO_DEEPSEEK = 8192` en `deepseekConversation` (el cap no fuerza
+  generación: no sube el coste cuando la respuesta es corta). Y si el corte por presupuesto
+  volviera a pasar, el error lo dice («agotó el presupuesto de respuesta…») en vez del genérico.
+- **Verificado end-to-end con la clave real tras el fix:** PDF de factura con texto se extrae vía
+  DeepSeek (importe, emisor, moneda OK); imagen da el mensaje accionable de Groq; NUNCA el error
+  crudo del SDK de Anthropic. El error «Could not resolve authentication method» que Alex capturó
+  viene de un deploy ANTERIOR a #387 (el código actual no puede producirlo: los 6 constructores
+  están guardados — `claude.ts`, `provider.ts`, `gateway.ts` y las 2 rutas de carruseles con 503
+  propio). Si reaparece: hard-refresh y comprobar el SHA del deploy.
+- **Regresión permanente:** 2 tests nuevos en `tests/ia-relevo.test.mjs` (margen mínimo en el
+  cuerpo saliente + relevo declarado al cortar por presupuesto).
+
 ## Atribución de UTMs en la sync por pull de agendas — cerrado en PR #389, barrido verificado, 7-oct-2026 (Freebuff)
 
 - **Fusionada y desplegada:** PR #389 (squash `9f011c2`), CI verde (Quality, Build, Smoke E2E,
