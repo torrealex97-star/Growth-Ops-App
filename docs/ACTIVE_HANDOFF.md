@@ -1,11 +1,17 @@
-## Lead scoring explicable desde formularios — EN CURSO, 7-oct-2026 (Codex)
+## Lead scoring explicable desde formularios — CERRADO EN PR #400, 7-oct-2026 (Codex)
 
-- **Rama única:** `codex/lead-scoring-explicable`, creada desde `main` tras comprobar que no hay PRs
-  ni ramas remotas pendientes y que los checkouts `.freebuff/*` de Codebuff son históricos o ya
-  están fusionados mediante cambios equivalentes.
-- **Reclamación:** motor puro de puntuación sobre respuestas reales (compromiso, capacidad económica
-  e intención de inversión), presentación explicable en Agendas y regresiones focales. No añadir una
-  segunda fuente de cualificación ni usar IA para decidir.
+- **Fusionado:** PR #400, squash `30ba5b2f`; rama funcional eliminada. La auditoría de Codebuff no
+  encontró una rama o PR pendiente: los checkouts `.freebuff/*` son históricos y sus cambios útiles
+  ya estaban integrados en `main` mediante PRs o parches equivalentes.
+- **Implementado:** motor puro y determinista sobre respuestas reales de formulario (compromiso 40 %,
+  capacidad económica 30 % e intención de inversión 30 %), con pesos renormalizados cuando falta una
+  dimensión, confianza separada y desglose explicable dentro del detalle de Agenda. No usa IA, no
+  persiste una segunda fuente de verdad y no cambia consultas, RLS ni esquema.
+- **Regresiones:** 5 casos focales (alto, bajo, parcial, sin señales y prevención del falso positivo
+  de `si` dentro de otra palabra). Local: format, lint, typecheck, suite completa, métricas 788/788 y
+  build de producción PASS. GitHub: Quality, gitleaks, Build, Smoke E2E, Release gate y Vercel Preview
+  PASS. La inspección visual autenticada con formularios reales sigue pendiente; no bloquea el motor
+  puro, pero debe cubrirse al ampliar el E2E de Agendas.
 
 ## Logo configurable por subcuenta — CERRADO EN PR #398, 7-oct-2026 (Codex)
 
