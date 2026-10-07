@@ -2832,3 +2832,56 @@ El usuario aclara que Cash Collected medio debe medir la primera transacción de
 - Extensiones `vector`/`pg_trgm` en `public` (bajo riesgo, ventana de prueba).
 - Deriva del historial de migraciones (varias del repo no figuran en `schema_migrations`): `supabase migration repair` cambia el registro de producción → pedir confirmación.
 - Dependabot #229 (eslint 10, CI falla) abierto a propósito. Ramas sin fusionar a propósito: `chore/ux04-formato-moneda-fuente-unica`, `feat/port-pr225-ads-filter-nuevo-recurrente`, `codex/*`, `rescate/*`.
+
+## 2026-10-06 · EN CURSO — ajuste de comisión por venta y colaborador
+
+**Petición de producto:** desde `/[tenant]/comisiones`, al seleccionar un colaborador, mostrar únicamente sus ventas atribuidas y permitir corregir cada comisión: cambiar el porcentaje o marcar la venta como «No comisiona». Las comisiones ya pagadas no se borran; se compensan mediante un ajuste trazable.
+
+**Rama activa:** `codex/commission-sale-adjustments`, creada desde `main` en `874e5eb`. No se creó PR, no se fusionó y no se desplegó. No crear otra rama: continuar en esta.
+
+**Implementado y actualmente staged:**
+
+- `app/[tenant]/comisiones/page.tsx`: amplía la relación de venta con el porcentaje del colaborador y monta el detalle cuando admin/director selecciona una persona.
+- `components/commissions/CollaboratorSalesReview.tsx`: una fila por venta con cliente, fecha, facturación, cash collected, base, porcentaje, comisión generada, pendiente y pagada; vista móvil; diálogo de ajuste con motivo obligatorio y atajo «No comisiona».
+- `app/api/[tenant]/evergreen/commissions/adjust-sale/route.ts`: POST limitado a admin/director y al tenant autorizado; valida venta, usuario, porcentaje 0–100 y motivo 3–500; invoca RPC únicamente con service role en servidor.
+- `lib/commissions/dashboard.ts`: `buildCollaboratorSaleReviews`, que agrupa el ledger por venta, evita duplicar el mismo cobro, separa pendiente/pagado y respeta ajustes negativos/cancelaciones.
+- `tests/commission-sale-review.test.mjs`: regresiones de deduplicación y estados/direcciones.
+- `supabase/migrations/20261006150000_adjust_sale_collaborator_commission.sql`: RPC atómica `SECURITY DEFINER`, `search_path` fijo y ejecución revocada a `PUBLIC`, `anon` y `authenticated`. Recalcula filas abiertas, conserva las liquidadas, crea un true-up positivo/negativo, actualiza la atribución de la venta y registra `audit_logs`. El último parche que conserva `participant_type` (`affiliate`/`collaborator`) ya está staged.
+
+**Investigación aplicada:** el patrón sigue los estados de Salesforce Spiff: detalle por operación, ajuste manual positivo/negativo por periodo y clawback enlazado al negocio original. Referencias: `https://help.salesforce.com/s/articleView?id=sales.spiff_statements_admin.htm&type=5`, `...spiff_statements_manual_adjustments.htm&type=5` y `...spiff_rules.htm&type=5`.
+
+**Validación ejecutada de verdad en clon temporal `/tmp/growthops-commission-adjust-3`:**
+
+- Prettier: PASS.
+- Lint: PASS, solo avisos preexistentes.
+- Typecheck: PASS.
+- Tests focalizados: 5/5 PASS (3 anteriores del dashboard + 2 nuevos).
+- `npm run test:metrics`: 783/783 PASS.
+- Build de producción con variables placeholder: PASS; incluye la nueva ruta API.
+- `git diff --cached --check`: PASS después de dejar staged el parche SQL y este handoff.
+- `npm test` canónico: NOT AVAILABLE en esta máquina porque Node v26.8.2 ya no acepta `--experimental-transform-types`. Ejecutado sin esa flag: 1404 PASS, 3 SKIP, 1 FAIL únicamente en `tests/apify-retry-scenario.test.mjs` por parameter properties TypeScript no soportadas por el modo strip-only de Node 26. Es incompatibilidad del harness/entorno, no un fallo relacionado con este cambio; CI con la versión soportada de Node debe decidir.
+
+**Prueba de integración SQL sin persistencia:** se creó la función dentro de `BEGIN`, se ejecutó contra una venta histórica real que tenía comisión abierta y pagada y después se hizo `ROLLBACK`. Resultado esperado observado: una fila abierta recalculada/cancelada y true-up negativo de la parte ya liquidada. Verificación posterior: función no persistida, cero ajustes persistidos y cero filas modificadas. Producción quedó intacta.
+
+**Privacidad/dato real:** no publicar identificadores ni importes del tenant en PR, commits o documentación. El diagnóstico mostró una atribución histórica anterior a la fecha acordada por el usuario, pero **no se corrigió**. No ejecutar el ajuste real sin autorización explícita, porque afecta un ledger financiero ya parcialmente liquidado.
+
+**Siguiente agente — orden obligatorio:**
+
+1. `git status --short`; preservar `.freebuff/*`, `docs/DASHBOARD_AUDIT.md` y `docs/DASHBOARD_CORRECTION_PLAN.md`, que son cambios ajenos/no rastreados.
+2. La semántica de «No comisiona» quedó resuelta el 7-oct: conserva `affiliate_id = p_user_id` y guarda porcentaje 0. No volver a convertir el ajuste financiero en pérdida de atribución histórica.
+3. Confirmar que los siete archivos previstos siguen staged; `git diff --cached --check` ya está PASS, pero repetirlo si se modifica algo.
+4. Repetir format, lint, typecheck, tests focalizados, métricas y build. Dejar el full unit suite a CI con Node soportado.
+5. Commit, push y PR. Esperar CI completo; no fusionar con checks rojos.
+6. Solo después del merge, aplicar la migración a Supabase producción y verificar permisos/función. El deploy de código antes de la migración dejaría el botón fallando; coordinar migración antes de promover el frontend o aplicar DDL inmediatamente antes del merge/deploy.
+7. Verificar Vercel READY y hacer smoke autenticado desktop/móvil: filtro por colaborador, tabla, diálogo, validaciones, error de red y cierre sin guardar. No ejecutar un ajuste financiero real durante el smoke.
+
+**Riesgo funcional abierto:** el detalle se construye a partir del ledger filtrado de comisiones. Los filtros de fecha existentes se aplican sobre `created_at` de la comisión, no necesariamente sobre `sale_date`; comprobar que el copy deja claro «según filtros activos» o ajustar la fuente sin romper el dashboard. También validar si un miembro setter/closer sin filas de colaborador debe ocultar por completo este bloque en lugar de mostrar empty state.
+
+**Continuación Codex, 7-oct:** «No comisiona» conserva la atribución histórica de la venta y guarda
+`affiliate_commission_percent = 0`; se añadió una regresión estática para impedir que vuelva a
+vaciarse `affiliate_id`. El diálogo también recupera el estado tras una caída de red y permite
+reintentar, en vez de quedar bloqueado en «Guardando…». Verificación posterior en copia temporal:
+Prettier focalizado PASS, test focalizado 3/3 PASS, typecheck PASS y `test:metrics` 783/783 PASS.
+Lint/full unit permanecen cubiertos por la validación anterior; no se pudieron repetir en este host
+con Node 26 porque el proyecto exige Node 24 (el `next lint` de este entorno no resuelve el export
+sin extensión y `npm test` usa una flag retirada). CI con Node soportado es el gate definitivo.
