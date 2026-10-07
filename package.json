@@ -22,7 +22,8 @@
     "mcp:repomix": "npx -y repomix --mcp",
     "context:build": "npx -y repomix --config repomix.config.json",
     "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:rls:live": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa/rls-multitenant.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
