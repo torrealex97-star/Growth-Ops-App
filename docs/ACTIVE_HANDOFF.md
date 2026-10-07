@@ -1,7 +1,7 @@
 ## Fase 2 P0 — recorrido crítico y aislamiento multi-tenant — EN CURSO, 7-oct-2026 (Codex)
 
-- **Rama única:** `codex/critical-journeys-multitenant`, desde `main` tras fusionar y desplegar
-  PR #392. No abrir ramas paralelas; continuar aquí o cerrar esta unidad antes de iniciar otra.
+- **Rama única actual:** `codex/critical-journey-e2e`, desde `main` tras fusionar PR #394. No abrir
+  ramas paralelas; continuar aquí o cerrar esta unidad antes de iniciar otra.
 - **Reclamación:** fixtures y pruebas del recorrido lead → agenda → asistencia/no-show → venta →
   cobro → comisión; atribución UTM/anuncio; y aislamiento ORG_A/ORG_B para un usuario miembro de
   ambas subcuentas. No tocar integraciones bloqueadas por secretos ni ejecutar cobros reales.
@@ -17,6 +17,14 @@
   opt-in (`RLS_LIVE_CONFIRM=1`) y no entra en la suite unitaria. La ejecución contra producción fue
   **NOT AVAILABLE**: el control de seguridad del host rechazó mutaciones con `service_role` aunque
   fueran autolimpiables. Ejecutarla solo con autorización explícita o contra un proyecto QA.
+- **Ampliación E2E en curso:** `venta-completa.spec.mjs` ya no comienza directamente en Venta. El
+  setup crea atribución Meta first/last touch y una agenda del contacto con closer; el recorrido
+  marca asistencia en la UI, comprueba que Venta hereda agenda/closer, registra cobro y contrato,
+  verifica campaña/anuncio en la ficha y termina en la comisión trazable a la venta. Fixture aislado
+  en `qa-e2e`, con borrado dirigido por `external_id`/`funnel`; nunca se ejecuta sobre producción.
+  El último SHA previo al rebase pasó formato, lint, typecheck, unitarias, métricas, build, 12 E2E y
+  release gate; repetir CI tras el rebase antes de fusionar.
+
 ## Webhooks entrantes de Hotmart y Whop — cerrado en PR #394, desplegado y verificado, 7-oct-2026 (Freebuff)
 
 - **Fusionado y desplegado:** PR #394 (squash `88965d1`), CI verde completo (gitleaks, Quality,
@@ -27,8 +35,8 @@
 - **Qué entró:** la mitad receptora de las dos integraciones que solo tenían cotejo por API —
   rutas `POST /api/[tenant]/evergreen/webhooks/{hotmart,whop}` sobre un MOTOR COMPARTIDO
   (`lib/webhooks/entradaCompras.ts`), firma fail-closed POR SUBCUENTA (el secreto vive solo en el
-  panel, sin respaldo en el entorno): Hotmart `X-Hotmart-Hmac` (HMAC-SHA256 del cuerpo crudo,
-  base64 o hex) + legacy `x-hotmart-hottok`; Whop Standard Webhooks (`v1,base64` sobre
+  panel, sin respaldo en el entorno): Hotmart 2.0 mediante el Hottok oficial de cuenta en
+  `X-HOTMART-HOTTOK`; Whop Standard Webhooks (`v1,base64` sobre
   `{webhook-id}.{webhook-timestamp}.{body}`) con anti-replay de 5 min. Sobre crudo en `raw_events`
   con idempotencia `(tenant, source, source_event_id)` que REPROCESA y sana parciales (no salta el
   reintento), contacto por email (`lead_status 'venta'` y `lead_channel hotmart|whop` SOLO al
