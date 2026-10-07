@@ -63,7 +63,10 @@ test.describe('Venta completa — pago completo con cobro y contrato', () => {
     await expect(page.getByRole('heading', { name: 'Equipo' })).toBeVisible()
     // La agenda es la fuente principal: closer y cita llegan seleccionados, no se reatribuyen a mano.
     await expect(page.getByText('E2E Colaborador').first()).toBeVisible()
-    await expect(page.getByText('show').first()).toBeVisible()
+    const agendaVinculada = page.getByText('Agenda vinculada (opcional)').locator('..')
+    const citaSeleccionada = agendaVinculada.locator('button').first()
+    await expect(citaSeleccionada).toBeVisible()
+    await expect(citaSeleccionada).toHaveClass(/bg-brand-600\/10/)
     await page.getByRole('button', { name: 'Siguiente' }).click()
     await expect(page.getByRole('heading', { name: 'Confirmar Venta' })).toBeVisible()
 
