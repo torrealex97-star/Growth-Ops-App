@@ -1,3 +1,12 @@
+## Importación segura de plantillas de contrato — EN CURSO, 7-oct-2026 (Codex)
+
+- **Rama única:** `codex/contract-template-import`, creada desde `main` después de cerrar y eliminar
+  las ramas de las PR #400/#401. Reclamación acotada a importar PDF/TXT/Markdown en el editor de
+  plantillas; no modifica contratos firmados ni añade otra tabla o fuente de verdad.
+- **SEARCH BEFORE CREATE:** ya existían el editor `/contratos/plantillas`, la tabla
+  `contract_templates` y el extractor serverless `unpdf`; se reutilizan. El hueco real era que el
+  usuario debía copiar el texto manualmente.
+
 ## Lead scoring explicable desde formularios — CERRADO EN PR #400, 7-oct-2026 (Codex)
 
 - **Fusionado:** PR #400, squash `30ba5b2f`; rama funcional eliminada. La auditoría de Codebuff no
@@ -28,10 +37,10 @@
   de producción PASS. Las tres pruebas que consultan el esquema vivo pasaron al repetir la suite
   con red habilitada. Pendiente CI/Preview y smoke real tras publicar.
 
-## Fase 2 P0 — recorrido crítico y aislamiento multi-tenant — EN CURSO, 7-oct-2026 (Codex)
+## Fase 2 P0 — recorrido crítico y aislamiento multi-tenant — CERRADO EN PR #393/#395, 7-oct-2026 (Codex)
 
-- **Rama única actual:** `codex/critical-journey-e2e`, desde `main` tras fusionar PR #394. No abrir
-  ramas paralelas; continuar aquí o cerrar esta unidad antes de iniciar otra.
+- **Fusionado:** PR #393 (`9f5b3bd6`) y PR #395 (`ddd9c042`); la rama antigua ya no existe. No abrir
+  una segunda rama para repetir este recorrido: ampliar los specs existentes cuando cambie el flujo.
 - **Reclamación:** fixtures y pruebas del recorrido lead → agenda → asistencia/no-show → venta →
   cobro → comisión; atribución UTM/anuncio; y aislamiento ORG_A/ORG_B para un usuario miembro de
   ambas subcuentas. No tocar integraciones bloqueadas por secretos ni ejecutar cobros reales.

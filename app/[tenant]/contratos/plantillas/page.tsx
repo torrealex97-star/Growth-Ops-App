@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { FileText, Plus, Edit2, Loader2, Trash2, Sparkles } from 'lucide-react'
+import { FileText, Plus, Edit2, Loader2, Trash2, Sparkles, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ContractTemplate } from '@/lib/types/database'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
@@ -75,6 +75,8 @@ export default function PlantillasPage() {
   const [roleKey, setRoleKey] = useState('')
   const [body, setBody] = useState('')
   const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState(false)
 
   const load = useCallback(async () => {
     const sb = createClient()
@@ -149,6 +151,31 @@ export default function PlantillasPage() {
     toast.success('Variables insertadas', { description: 'Revisa el resultado antes de guardar.' })
   }
 
+  const importFile = async (file: File) => {
+    setImporting(true)
+    try {
+      const form = new FormData()
+      form.set('file', file)
+      const res = await fetch(`/api/${tenant}/evergreen/contracts/templates/import`, { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'No se pudo importar el contrato')
+      setEditing(null)
+      setName(data.suggestedName || '')
+      setKind('alumno')
+      setPaymentMethod('')
+      setWelcome('')
+      setRoleKey('')
+      setBody(data.body || '')
+      setDialog(true)
+      toast.success('Contrato importado', { description: 'Revisa el texto y sus variables antes de guardarlo.' })
+    } catch (error) {
+      toast.error('No se pudo importar', { description: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setImporting(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
   const save = async () => {
     if (!name.trim() || !body.trim()) {
       toast.error('Nombre y cuerpo son obligatorios')
@@ -202,10 +229,27 @@ export default function PlantillasPage() {
             enviará la plantilla del método seleccionado.
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nueva plantilla
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf"
+            className="sr-only"
+            aria-label="Importar contrato desde un archivo"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void importFile(file)
+            }}
+          />
+          <Button variant="outline" disabled={importing} onClick={() => fileRef.current?.click()}>
+            {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+            Importar PDF o texto
+          </Button>
+          <Button onClick={openNew}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nueva plantilla
+          </Button>
+        </div>
       </div>
 
       {loading ? (
