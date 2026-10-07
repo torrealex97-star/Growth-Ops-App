@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { reconcileSaleCommissions } from '@/lib/commissions/generate'
+import { buildSaleUpdatePayload } from '@/lib/sales/update-payload'
 import type { Sale } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
@@ -35,23 +36,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (prevErr || !prevData) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
     const prev = prevData as Sale
 
-    // Construye el payload solo con los campos enviados (edición parcial)
-    const norm = (v: unknown) => (v === 'none' || v === '' || v === undefined ? null : v)
-    const payload: Record<string, unknown> = { updated_by: t.userId }
-    if ('setter_id' in body) payload.setter_id = norm(body.setter_id)
-    if ('closer_id' in body) payload.closer_id = norm(body.closer_id)
-    if ('affiliate_id' in body) payload.affiliate_id = norm(body.affiliate_id)
-    if ('affiliate_commission_percent' in body) {
-      const pct = parseFloat(String(body.affiliate_commission_percent))
-      if (payload.affiliate_id && body.affiliate_commission_percent) {
-        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-          return NextResponse.json({ error: 'affiliate_commission_percent debe estar entre 0 y 100' }, { status: 400 })
-        }
-        payload.affiliate_commission_percent = pct
-      } else {
-        payload.affiliate_commission_percent = null
-      }
-    }
+    // Construye el payload solo con los campos enviados. El afiliado efectivo puede venir de la
+    // venta anterior cuando la UI edita únicamente el porcentaje; 0 % es un valor válido.
+    const built = buildSaleUpdatePayload(body, prev, t.userId)
+    if (!built.ok) return NextResponse.json({ error: built.error }, { status: 400 })
+    const payload = built.payload
     if ('sale_date' in body && body.sale_date) payload.sale_date = body.sale_date
     if ('gross_amount' in body && body.gross_amount !== '' && body.gross_amount != null) {
       const gross = parseFloat(String(body.gross_amount))
