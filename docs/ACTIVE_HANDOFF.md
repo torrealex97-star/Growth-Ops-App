@@ -1,6 +1,8 @@
-## Logo configurable por subcuenta — LISTO PARA PR, 7-oct-2026 (Codex)
+## Logo configurable por subcuenta — CERRADO EN PR #398, 7-oct-2026 (Codex)
 
-- **Rama única propuesta:** `codex/tenant-logo-branding`, desde `main` tras fusionar PR #397.
+- **Fusionado y desplegado:** PR #398, commit `7f642c02`; CI, Build, Smoke E2E, Release gate y
+  Vercel producción PASS. Smoke público: página protegida redirige a login y endpoint sin sesión
+  responde 401. Rama eliminada.
 - **Reclamación:** `lib/tenant-branding.ts`, cabecera de `components/os/Sidebar.tsx`,
   `app/[tenant]/settings/empresa/page.tsx`, endpoint acotado de branding y pruebas relacionadas.
   No requiere migración: amplía el JSON existente `tenants.settings.branding`.
