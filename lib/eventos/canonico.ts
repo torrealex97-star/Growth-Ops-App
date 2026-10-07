@@ -72,6 +72,12 @@ export function hechoDesdeSobre(opciones: {
    * ejemplo, no tiene un payload plano que filtrar — su normalizador ya sabe qué es dinero y qué no.
    */
   propiedades?: Record<string, unknown>
+  /**
+   * Cuándo ocurrió el hecho, decidido por el normalizador de la fuente. Hotmart y Whop anidan la
+   * fecha del pedido en sitios que `ocurridoEn` (diseñado para GHL) no mira; su derivación la trae
+   * ya resuelta y aquí manda. Sin override, la heurística genérica de arriba.
+   */
+  ocurridoEn?: string
 }): HechoCanonico {
   const { tenantId, source, sourceEventId, rawEventId, tipo, payload, recibidoEn } = opciones
   return {
@@ -83,7 +89,7 @@ export function hechoDesdeSobre(opciones: {
     // contra la clave única (tenant, source, source_event_id) en vez de crear dos hechos.
     event_id: sourceEventId,
     event_name: tipo,
-    occurred_at: ocurridoEn(payload, recibidoEn),
+    occurred_at: opciones.ocurridoEn ?? ocurridoEn(payload, recibidoEn),
     idempotency_key: sourceEventId,
     properties: opciones.propiedades ?? propiedadesSinPii(payload),
     // Los vínculos con la persona y la cita son el resultado de la proyección: se conocen DESPUÉS de

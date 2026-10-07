@@ -1,5 +1,8 @@
 import crypto from 'crypto'
 
+/** Veredicto de verificación de firma: válido o por qué no (para el LOG, nunca para la respuesta). */
+export type VeredictoFirma = { valida: boolean; motivo: string | null }
+
 // Comparación segura de secretos de webhook (header/query estático, no HMAC) — evita el timing
 // side-channel de `secret === expected`, que revela por cuánto tiempo tarda la comparación
 // cuántos caracteres iniciales coinciden. Antes usado en webhooks/{ghl,contract,onboarding}.
