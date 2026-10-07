@@ -33,45 +33,26 @@ const codigo = (p) =>
     .replace(/\/\*[\s\S]*?\*\//g, '')
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
-// HOTMART — FIRMA. Hotmart firma el CUERPO CRUDO con el token del webhook (X-Hotmart-Hmac) o lo
-// manda en claro (x-hotmart-hottok, entregas legacy). Sin token guardado: nada pasa (fail-closed).
+// HOTMART — AUTENTICACIÓN. Hotmart manda el Hottok único de la cuenta en X-HOTMART-HOTTOK.
+// Sin token guardado: nada pasa (fail-closed).
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
 const HOTMART_SECRETO = 'mi-token-de-webhook-hotmart-1234567890'
 const hotmartRaw = JSON.stringify({ event: 'PURCHASE_APPROVED', data: {} })
 
-function hotmartTestHmac(raw, secreto) {
-  return crypto.createHmac('sha256', secreto).update(raw).digest()
-}
-
-test('hotmart: la firma HMAC del cuerpo crudo valida (base64 y hex)', () => {
-  const mac = hotmartTestHmac(hotmartRaw, HOTMART_SECRETO)
-  for (const codificacion of [mac.toString('base64'), mac.toString('hex')]) {
-    const v = verificarFirmaHotmart(hotmartRaw, new Headers({ 'x-hotmart-hmac': codificacion }), HOTMART_SECRETO)
-    assert.equal(v.valida, true, `la codificación ${codificacion.length} caracteres debe validar`)
-  }
-})
-
-test('hotmart: la firma con otro token no valida y el motivo no filtra el secreto', () => {
-  const mac = hotmartTestHmac(hotmartRaw, 'otro-token-totalmente-distinto-000000')
-  const v = verificarFirmaHotmart(
+test('hotmart: el Hottok oficial valida y otro token no valida sin filtrar el secreto', () => {
+  const valido = verificarFirmaHotmart(
     hotmartRaw,
-    new Headers({ 'x-hotmart-hmac': mac.toString('base64') }),
+    new Headers({ 'x-hotmart-hottok': HOTMART_SECRETO }),
     HOTMART_SECRETO
   )
+  assert.equal(valido.valida, true)
+  const v = verificarFirmaHotmart(hotmartRaw, new Headers({ 'x-hotmart-hottok': 'otro-token' }), HOTMART_SECRETO)
   assert.equal(v.valida, false)
   assert.ok(!v.motivo.includes(HOTMART_SECRETO), 'el motivo nunca contiene el valor del secreto')
-  // Y una firma válida con el cuerpo cambiado (replay del cuerpo de otra entrega) tampoco: el HMAC
-  // es sobre los bytes exactos.
-  const v2 = verificarFirmaHotmart(
-    hotmartRaw + ' ',
-    new Headers({ 'x-hotmart-hmac': hotmartTestHmac(hotmartRaw, HOTMART_SECRETO).toString('base64') }),
-    HOTMART_SECRETO
-  )
-  assert.equal(v2.valida, false, 'modificar un byte del cuerpo invalida la firma')
 })
 
-test('hotmart: el token legacy hottok valida en tiempo constante y fail-closed sin secreto', () => {
+test('hotmart: Hottok es fail-closed sin secreto o sin la cabecera oficial', () => {
   const v = verificarFirmaHotmart(hotmartRaw, new Headers({ 'x-hotmart-hottok': HOTMART_SECRETO }), HOTMART_SECRETO)
   assert.equal(v.valida, true)
   assert.equal(
@@ -79,7 +60,7 @@ test('hotmart: el token legacy hottok valida en tiempo constante y fail-closed s
     false
   )
   // Sin secreto guardado en el panel NO se acepta nada, ni siquiera con la cabecera "correcta".
-  const sinSecreto = verificarFirmaHotmart(hotmartRaw, new Headers({ 'x-hotmart-hmac': 'x' }), undefined)
+  const sinSecreto = verificarFirmaHotmart(hotmartRaw, new Headers({ 'x-hotmart-hottok': HOTMART_SECRETO }), undefined)
   assert.equal(sinSecreto.valida, false)
   // Sin cabeceras tampoco: el token del webhook es obligatorio en el alta.
   assert.equal(verificarFirmaHotmart(hotmartRaw, new Headers(), HOTMART_SECRETO).valida, false)
@@ -170,7 +151,7 @@ test('el id del evento: id real del sobre, cabecera de respaldo y huella determi
 
 const hotmartCompra = {
   id: 'evt_1',
-  creation_date: 1791350400,
+  creation_date: 1791350400000,
   event: 'PURCHASE_APPROVED',
   version: '2.0.0',
   data: {
@@ -234,6 +215,14 @@ test('hotmart: tipo y clase económicos, fecha del pedido y propiedades sin PII'
   assert.equal(desconocido.tipo, 'hotmart.evento.recibido', 'lo desconocido se guarda sin inventarle semántica')
 })
 
+test('hotmart: creation_date documentado en milisegundos se usa cuando no hay fecha de compra', () => {
+  const d = derivarHotmart(
+    { id: 'evt_fecha', event: 'PURCHASE_APPROVED', creation_date: 1791350400000, data: {} },
+    '2026-10-08T00:00:00.000Z'
+  )
+  assert.equal(d.ocurridoEn, '2026-10-07T05:20:00.000Z')
+})
+
 test('whop: tipo y clase, fecha del pago e importe transcrito sin PII', () => {
   const d = derivarWhop(whopPago, '2026-10-07T00:00:00.000Z', 'msg_1')
   assert.ok(d)
@@ -272,6 +261,11 @@ test('el comprador se extrae normalizado y el toque lee las UTMs si el payload l
   assert.equal(toque.utm_source, 'ig')
   const toqueWhop = toqueDesdePayloadWhop(whopPago)
   assert.equal(toqueWhop.utm_source, undefined, 'sin UTMs en el payload, no se inventa ninguna')
+  const origenHotmart = toqueDesdePayloadHotmart({
+    data: { purchase: { origin: { src: 'meta', sck: 'anuncio-42', xcod: 'fallback' } } },
+  })
+  assert.equal(origenHotmart.utm_source, 'meta')
+  assert.equal(origenHotmart.utm_content, 'anuncio-42')
 })
 
 test('el hecho canónico respeta la fecha que decide la derivación', () => {
@@ -396,6 +390,11 @@ test('el motor es idempotente en base: el reintento UPSERTEA el sobre y sana el 
   // El cierre del sobre pasa por el mismo camino (todas las salidas cierran su estado).
   assert.match(src, /processing_status: fallo \? 'rejected' : 'normalized'/)
   assert.match(src, /duplicado: Boolean\(sobrePrevio\)/)
+  assert.match(
+    src,
+    /if \(!hechoEscrito\) return responder\(\{ error: 'No se pudo registrar el hecho canónico' \}, 500\)/,
+    'un fallo del hecho canónico devuelve 500 para que el proveedor reintente y sane el parcial'
+  )
 })
 
 test('el catálogo declara los webhooks entrantes con evidencia real y doc existente', () => {

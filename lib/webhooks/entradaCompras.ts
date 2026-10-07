@@ -202,7 +202,8 @@ export async function procesarEntradaCompra(opciones: {
     // queda guardado (con su derivación, si se procesa el hecho abajo) y se responde 200 — un
     // reintento no fabricaría un email. La entrega queda visible en raw_events para revisarla.
     console.warn(`[${fuente}-webhook] entrega sin email ni teléfono del comprador; queda en raw_events`)
-    await escribirHecho(sb, fuente, tenantId, sobreId, derivado, null, ahora)
+    const hechoEscrito = await escribirHecho(sb, fuente, tenantId, sobreId, derivado, null, ahora)
+    if (!hechoEscrito) return responder({ error: 'No se pudo registrar el hecho canónico' }, 500)
     return responder({
       recibido: true,
       evento: derivado.sourceEventId,
@@ -249,7 +250,8 @@ export async function procesarEntradaCompra(opciones: {
   }
 
   // ── HECHO CANÓNICO ────────────────────────────────────────────────────────────────────────
-  await escribirHecho(sb, fuente, tenantId, sobreId, derivado, contactId, ahora)
+  const hechoEscrito = await escribirHecho(sb, fuente, tenantId, sobreId, derivado, contactId, ahora)
+  if (!hechoEscrito) return responder({ error: 'No se pudo registrar el hecho canónico' }, 500)
 
   return responder({
     recibido: true,
@@ -265,7 +267,7 @@ export async function procesarEntradaCompra(opciones: {
   })
 }
 
-/** El hecho canónico, al final (lleva el contactId de la proyección). Su fallo no tumba la entrega. */
+/** El hecho canónico, al final (lleva el contactId de la proyección). */
 async function escribirHecho(
   sb: ReturnType<typeof servicio>,
   fuente: FuenteCompra,
@@ -274,7 +276,7 @@ async function escribirHecho(
   derivado: DerivadoCompra,
   contactId: string | null,
   ahora: string
-) {
+): Promise<boolean> {
   try {
     const { data: escrito, error: errorHecho } = await sb
       .from('canonical_events')
@@ -297,7 +299,7 @@ async function escribirHecho(
       .maybeSingle()
     if (errorHecho) {
       console.warn(`[${fuente}-webhook] no se pudo escribir el hecho canónico:`, errorHecho.message)
-      return
+      return false
     }
     if (escrito?.id) {
       const { error: enlaceErr } = await sb
@@ -306,8 +308,10 @@ async function escribirHecho(
         .eq('id', sobreId)
       if (enlaceErr) console.warn(`[${fuente}-webhook] no se pudo enlazar el hecho canónico:`, enlaceErr.message)
     }
+    return true
   } catch (e) {
     // El sobre ya está a salvo: el hecho se puede derivar después con el replay.
     console.warn(`[${fuente}-webhook] no se pudo escribir el hecho canónico:`, e instanceof Error ? e.message : e)
+    return false
   }
 }

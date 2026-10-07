@@ -731,9 +731,9 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
           'En Hotmart abre Herramientas → Credenciales y crea una app: copia el Client ID y el Client Secret tal cual se enseñan. Son los que la app usa para cotejar las compras por API; el webhook no los necesita, pero sí el cotejo y la comprobación de conexión.',
       },
       {
-        titulo: 'Registra el webhook y define el token de firma',
+        titulo: 'Registra el webhook y copia tu Hottok',
         detalle:
-          'Da de alta el webhook de Hotmart apuntando a la dirección de arriba y, al crearlo, define un token de firma (el que Hotmart llama token del webhook): un valor largo y aleatorio que INVENTAS TÚ, no te lo da Hotmart. Pega EXACTAMENTE el mismo valor en el campo de abajo — Hotmart firma cada entrega con ese token y la comparación es byte a byte.',
+          'Da de alta el webhook de Hotmart apuntando a la dirección de arriba. Después abre Herramientas → Webhook → Autenticación, copia el Hottok único de tu cuenta y pégalo EXACTAMENTE en el campo de abajo. Hotmart lo envía en X-HOTMART-HOTTOK y la comparación es byte a byte.',
       },
       {
         titulo: 'Suscríbete a los eventos de compra',
@@ -764,7 +764,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         label: 'Webhook Secret (Hottok)',
         type: 'password',
         secret: true,
-        help: 'Token que INVENTAS TÚ al registrar el webhook en Hotmart (lo que Hotmart llama token del webhook). Llega firmado como X-Hotmart-Hmac (HMAC-SHA256 del cuerpo) o como x-hotmart-hottok, y debe ser idéntico, byte a byte, al definido en Hotmart.',
+        help: 'Hottok único de tu cuenta. Cópialo desde Herramientas → Webhook → Autenticación en Hotmart. Hotmart lo envía en X-HOTMART-HOTTOK y debe coincidir byte a byte.',
       },
     ],
   },

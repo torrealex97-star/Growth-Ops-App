@@ -98,7 +98,7 @@ export const WEBHOOKS_ENTRANTES: WebhookEntrante[] = [
     descripcion: 'Compras aprobadas y completadas, reembolsos y disputas en el momento.',
     path: '/api/{tenant}/evergreen/webhooks/hotmart',
     metodo: 'POST',
-    auth: { tipo: 'firma', nombre: 'x-hotmart-hmac', configKey: 'HOTMART_WEBHOOK_SECRET' },
+    auth: { tipo: 'cabecera', nombre: 'x-hotmart-hottok', configKey: 'HOTMART_WEBHOOK_SECRET' },
     eventos: [
       'PURCHASE_APPROVED',
       'PURCHASE_COMPLETE',

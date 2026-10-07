@@ -12,9 +12,8 @@ export const maxDuration = 10
 // Todo el esqueleto vive en lib/webhooks/entradaCompras.ts: aquí solo se declara QUÉ firma y QUÉ
 // normalizador usa este proveedor.
 //
-// El token se define al registrar el webhook en Hotmart y se guarda en Integraciones → Hotmart →
-// Webhook Secret (Hottok). Hotmart lo manda como `X-Hotmart-Hmac` (HMAC-SHA256 del cuerpo) o como
-// `x-hotmart-hottok`; ambos mecanismos quedan cubiertos y fail-closed.
+// El Hottok único de la cuenta se copia desde Herramientas → Webhook → Autenticación y se guarda en
+// Integraciones → Hotmart → Webhook Secret. Hotmart 2.0 lo manda en `X-HOTMART-HOTTOK`.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   return procesarEntradaCompra({
     req,

@@ -9,12 +9,11 @@ y qué NO hace el webhook todavía.
 POST https://app.scalixsystems.com/api/<slug-de-la-subcuenta>/evergreen/webhooks/hotmart
 ```
 
-- El token de firma lo define el propietario al registrar el webhook en Hotmart y se guarda en
+- Copia el Hottok único de la cuenta desde **Herramientas → Webhook → Autenticación** y guárdalo en
   **Integraciones → Hotmart → Webhook Secret (Hottok)** de ESA subcuenta (campo cifrado, sin
   respaldo en variables de entorno: el panel es la única fuente).
-- Hotmart firma cada entrega con ese token de dos formas: `X-Hotmart-Hmac` (HMAC-SHA256 del cuerpo
-  crudo, en base64 o hex — se aceptan ambas) o, en entregas legacy, `x-hotmart-hottok` (token en
-  claro). La comparación es timing-safe y fail-closed: sin token guardado, todo es `401`.
+- Hotmart envía ese valor en `X-HOTMART-HOTTOK`, que es el mecanismo documentado para webhooks
+  2.0. La comparación es timing-safe y fail-closed: sin Hottok guardado, todo es `401`.
 - Subcuenta inexistente/inactiva y firma errónea responden lo mismo (`401 "Firma inválida"`): no
   se puede usar el endpoint para enumerar slugs. El motivo concreto del rechazo queda en el log
   del servidor (`[hotmart-webhook] 401 en "<slug>": …`), nunca en la respuesta.

@@ -87,7 +87,7 @@ export function tipoEventoHotmart(payload: PayloadHotmart): string {
 
 /**
  * CUÁNDO ocurrió la compra, que no es cuándo nos llegó. `order_date` es la fecha del pedido;
- * `approved_date` la de la aprobación del pago; `creation_date` (segundos) la del evento en sí.
+ * `approved_date` la de la aprobación del pago; `creation_date` (milisegundos) la del evento en sí.
  * Solo si no hay ninguna se cae a la fecha de recepción.
  */
 export function ocurridoEnHotmart(payload: PayloadHotmart, recibidoEn: string): string {
@@ -98,10 +98,10 @@ export function ocurridoEnHotmart(payload: PayloadHotmart, recibidoEn: string): 
     if (!Number.isNaN(t)) return new Date(t).toISOString()
   }
   const creacion = numero(payload.creation_date)
-  // creation_date llega en segundos desde época (~1.7e9 hoy). Un rango acotado evita interpretar
+  // Hotmart 2.0 documenta creation_date en milisegundos desde época (~1.7e12 hoy). Un rango acotado evita interpretar
   // como fecha un número que en realidad es otra cosa (un importe mal colocado, por ejemplo).
-  if (creacion !== null && creacion > 1_000_000_000 && creacion < 4_000_000_000) {
-    return new Date(creacion * 1000).toISOString()
+  if (creacion !== null && creacion > 1_000_000_000_000 && creacion < 4_000_000_000_000) {
+    return new Date(creacion).toISOString()
   }
   return recibidoEn
 }
@@ -179,10 +179,16 @@ export function compradorHotmart(payload: PayloadHotmart): {
 export function toqueDesdePayloadHotmart(payload: PayloadHotmart): Record<string, unknown> {
   const d = esObjeto(payload.data) ?? {}
   const compra = esObjeto(d.purchase) ?? {}
+  const origen = esObjeto(compra.origin) ?? {}
   return {
     ...d,
     ...compra,
     tracking: esObjeto(compra.tracking) ?? esObjeto(d.tracking) ?? {},
+    // Hotmart no usa los nombres UTM estándar en el webhook: `src` identifica el origen y
+    // `sck`/`xcod` son códigos de seguimiento del checkout. Se normalizan para que el motor de
+    // first/last touch no pierda la atribución real de la compra.
+    utm_source: texto(origen.src) ?? texto(d.utm_source),
+    utm_content: texto(origen.sck) ?? texto(origen.xcod) ?? texto(d.utm_content),
   }
 }
 

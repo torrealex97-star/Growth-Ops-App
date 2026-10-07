@@ -28,10 +28,9 @@
   idempotencia por id de evento, hecho canónico F1, contacto por email (`getOrCreateContact`),
   atribución (`atribuirDesdePayload`, source `hotmart`/`whop`) y **NINGUNA escritura en `sales` ni
   `collections`** (el mapeo producto externo → producto de la app es decisión humana pendiente).
-- **Estado:** investigación de firmas hecha (Whop: Standard Webhooks `v1,base64` sobre
-  `{webhook-id}.{webhook-timestamp}.{body}` con tolerancia de 5 min; Hotmart: HMAC sobre el cuerpo
-  vía `X-Hotmart-Hmac` + mecanismo legacy `hottok`, ambos fail-closed — la doc oficial de Hotmart
-   está tras CloudFront y se cubren los dos mecanismos documentados). Implementación arrancando.
+- **Estado:** autenticación contrastada con documentación oficial (Whop: Standard Webhooks
+  `v1,base64` sobre `{webhook-id}.{webhook-timestamp}.{body}` con tolerancia de 5 min; Hotmart 2.0:
+  Hottok único de cuenta en `X-HOTMART-HOTTOK`). Ambos fail-closed y por subcuenta.
 
 ## DeepSeek: presupuesto de razonamiento — cerrado, 7-oct-2026 (Freebuff)
 

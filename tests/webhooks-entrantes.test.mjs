@@ -36,7 +36,7 @@ test('la cabecera que el catálogo declara es la que la ruta comprueba de verdad
     'ghl-citas': { cabecera: 'x-ghl-secret', clave: 'GHL_WEBHOOK_SECRET' },
     calendly: { cabecera: 'calendly-webhook-signature', clave: 'CALENDLY_WEBHOOK_SECRET' },
     stripe: { cabecera: 'stripe-signature', clave: 'STRIPE_WEBHOOK_SECRET' },
-    hotmart: { cabecera: 'x-hotmart-hmac', clave: 'HOTMART_WEBHOOK_SECRET' },
+    hotmart: { cabecera: 'x-hotmart-hottok', clave: 'HOTMART_WEBHOOK_SECRET' },
     whop: { cabecera: 'webhook-signature', clave: 'WHOP_WEBHOOK_SECRET' },
     contratos: { cabecera: 'x-ghl-secret', clave: 'GHL_WEBHOOK_SECRET' },
     onboarding: { cabecera: 'x-ghl-secret', clave: 'ONBOARDING_INBOUND_SECRET' },
@@ -49,7 +49,7 @@ test('la cabecera que el catálogo declara es la que la ruta comprueba de verdad
   }
 })
 
-test('GHL, contratos y onboarding comparten el mecanismo x-ghl-secret; Stripe, Hotmart y Whop firman', () => {
+test('los webhooks declaran correctamente cabecera plana o firma criptográfica', () => {
   // Documenta la realidad de la casa: tres webhooks con cabecera plana (reutilizando el secret
   // de GHL) y cuatro con firma del proveedor. Cambiar uno sin enterarse rompe este test a propósito.
   const porId = Object.fromEntries(WEBHOOKS_ENTRANTES.map((w) => [w.id, w]))
@@ -58,7 +58,7 @@ test('GHL, contratos y onboarding comparten el mecanismo x-ghl-secret; Stripe, H
   assert.equal(porId.onboarding.auth.tipo, 'cabecera')
   assert.equal(porId.stripe.auth.tipo, 'firma')
   assert.equal(porId.calendly.auth.tipo, 'firma')
-  assert.equal(porId.hotmart.auth.tipo, 'firma')
+  assert.equal(porId.hotmart.auth.tipo, 'cabecera')
   assert.equal(porId.whop.auth.tipo, 'firma')
   assert.equal(porId.contratos.auth.configKey, 'GHL_WEBHOOK_SECRET', 'contratos reutiliza el secret de GHL')
 })
