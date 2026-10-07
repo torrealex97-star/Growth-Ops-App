@@ -1,3 +1,29 @@
+## Atribución de UTMs en la sync por pull de agendas — 7-oct-2026 (Freebuff)
+
+- **Reclamación:** `lib/integrations/citas-sync.ts`, `lib/contacts/atribucion.ts`, sus tests y esta
+  sección del tablero. Unidad única, rama corta, un PR.
+- **Diagnóstico medido en producción (7-oct):** 0 de 640 citas con UTM (543 Calendly + 97 GHL) y
+  0 de 183 atribuciones con UTM (todas `ghl_import`/`ghl` solo con `source`). El webhook de Calendly
+  no está configurado: la vía principal es el cron/botón de sync — y esa vía no registraba
+  atribución. `track/[site]` (pixel propio) está montado pero sin uso (3 sesiones, 5 eventos).
+- **Material recuperable real:** 72 payloads de invitee de Calendly guardados en
+  `appointments.raw_payload` traen `tracking` con UTMs (IG Bio 16, TikTok Bio 15, linktr.ee 7,
+  ChatGPT 5, direct/organic 29, código de colaborador 3, otros 2). GHL no trae ninguno (0 de 97;
+  custom fields sin UTMs). La fila `contact_attributions` de contacto ya mostraba first/last UTM,
+  pero nada la llenaba.
+- **Cambio:** la sync por pull registra el toque (`atribuirDesdePayload` → `registrarToque`) y las
+  UTMs de la cita — solo si el payload las trae, el spread vacío no toca columnas en re-syncs — en
+  Calendly y GHL. `registrarToque` aprende dos reglas nuevas probadas: relleno del primer toque si
+  estaba vacío (null no es un toque; con valor jamás se sobrescribe) y toque antiguo que nunca se
+  presenta como último (la fecha del toque es la de la reserva, no la de la pasada).
+- **Hotmart y Whop NO existen como integración** (cero referencias en el repo): capturar su
+  atribución exige integración nueva (webhook + claves por subcuenta + mapeo de producto) —
+  decisión de producto pendiente de Alex, no bloquea este cambio.
+- **Barrido histórico:** tras el merge y el deploy se ejecuta la sync completa de Calendly (ventana
+  de 5 años, idempotente) para rellenar lo recuperable; conteos antes/después verificados aquí.
+- **Regresión permanente:** `tests/metrics/atribucion.test.mjs` (semántica first/last ampliada) y
+  `tests/citas-sync-atribucion.test.mjs` (contrato de la sync).
+
 ## IA: relevo de motores — toda función de IA funciona con cualquier IA conectada — 6-oct-2026 (PR #387 fusionada, desplegada y verificada; pulido de 401 en #388)
 
 - Rama `feat/ia-relevo-motores` desde `origin/main` (`dfd1dfe`).
