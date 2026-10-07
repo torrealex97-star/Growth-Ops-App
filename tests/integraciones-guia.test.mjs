@@ -86,7 +86,8 @@ test('el panel pinta la guía y resuelve la subcuenta en la dirección', () => {
 // como para dictar pasos, y una guía inventada es peor que ninguna — manda a alguien a un sitio
 // equivocado con total seguridad. Cuando se configure uno de verdad, se escribe su guía y sale de
 // aquí. La lista es CERRADA: añadir una integración nueva sin pasos rompe el test.
-const SIN_GUIA_TODAVIA = new Set(['tiktok', 'sequra', 'creatuagente', 'hotmart', 'whop', 'skool'])
+// (hotmart y whop salieron de aquí al escribirse su guía con sus webhooks entrantes, 7-oct.)
+const SIN_GUIA_TODAVIA = new Set(['tiktok', 'sequra', 'creatuagente', 'skool'])
 
 test('toda integración tiene guía, salvo las declaradas como pendientes', () => {
   const sinGuia = INTEGRATION_GROUPS.filter(

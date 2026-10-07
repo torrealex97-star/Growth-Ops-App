@@ -29,7 +29,7 @@ import {
   WEBHOOKS_ENTRANTES,
   evaluarSecret,
   ultimoEventoEnAudit,
-  eventosStripe,
+  eventosPorFuente,
   type EstadoSecretInfo,
   type UltimoEvento,
   type WebhookEntranteEstado,
@@ -192,7 +192,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   // NUNCA se deduce de las filas de negocio: el pull del cron escribe en las mismas tablas que
   // los webhooks, y presentar sus fechas como "último evento recibido" fue exactamente la
   // confusión que hizo indetectable que el webhook de GHL nunca entró en producción.
-  const [actasAudit, rawStripe] = await Promise.all([
+  const [actasAudit, rawEntregas] = await Promise.all([
     // Historial del tenant (audit_logs es global por tenant; las firmas de evaluación filtran).
     // Limita a 400: la evidencia del webhook vive en actas recientes, no en todo el histórico.
     svc()
@@ -202,22 +202,27 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
       .order('created_at', { ascending: false })
       .limit(400)
       .then(({ data }) => (data ?? []) as Parameters<typeof ultimoEventoEnAudit>[1]),
-    // Entregas de Stripe (incluidos los rechazos de firma que el webhook registra).
+    // Entregas crudas de los webhooks que escriben la suya en raw_events (Stripe, Hotmart, Whop),
+    // incluidos los rechazos de firma que registran. Una sola query para las tres fuentes.
     svc()
       .from('raw_events')
-      .select('received_at,processing_status')
+      .select('source,received_at,processing_status')
       .eq('tenant_id', auth.tenantId)
-      .eq('source', 'stripe')
+      .in('source', ['stripe', 'hotmart', 'whop'])
       .order('received_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => (data ?? []) as Parameters<typeof eventosStripe>[0]),
+      .limit(150)
+      .then(({ data }) => (data ?? []) as Parameters<typeof eventosPorFuente>[0]),
   ])
+  const entregasPorFuente = eventosPorFuente(rawEntregas)
   const webhooksEntrantes: WebhookEntranteEstado[] = WEBHOOKS_ENTRANTES.map((webhook) => {
     const secret: EstadoSecretInfo = evaluarSecret(state[webhook.auth.configKey])
     let ultimoEvento: UltimoEvento = null
     let ultimoRechazo: UltimoEvento = null
-    if (webhook.evidencia === 'raw_stripe') {
-      const r = eventosStripe(rawStripe)
+    if (webhook.evidencia === 'raw_stripe' || webhook.evidencia === 'raw_hotmart' || webhook.evidencia === 'raw_whop') {
+      const r = entregasPorFuente[webhook.evidencia.replace('raw_', '')] ?? {
+        ultimo_valido: null,
+        ultimo_rechazo: null,
+      }
       ultimoEvento = r.ultimo_valido
       ultimoRechazo = r.ultimo_rechazo
     } else if (webhook.evidencia) {

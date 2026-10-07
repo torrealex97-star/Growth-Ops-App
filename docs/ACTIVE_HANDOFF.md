@@ -17,6 +17,21 @@
   opt-in (`RLS_LIVE_CONFIRM=1`) y no entra en la suite unitaria. La ejecución contra producción fue
   **NOT AVAILABLE**: el control de seguridad del host rechazó mutaciones con `service_role` aunque
   fueran autolimpiables. Ejecutarla solo con autorización explícita o contra un proyecto QA.
+## En curso — webhooks entrantes de Hotmart y Whop (Freebuff, 7-oct-2026)
+
+- **Reclamación:** rutas nuevas `app/api/[tenant]/evergreen/webhooks/hotmart/` y `.../whop/`,
+  `lib/webhooks/hotmart.ts` + `lib/webhooks/whop.ts` (verificación de firma), `lib/eventos/hotmart.ts`
+  + `lib/eventos/whop.ts` (derivación de hechos), `lib/integrations-catalog.ts` (grupos y claves
+  `HOTMART_WEBHOOK_SECRET`/`WHOP_WEBHOOK_SECRET`), `lib/webhooks/entrantes.ts`, migración de semilla
+  `event_types`, sus tests y esta sección. Rama `feat/webhooks-hotmart-whop` desde `fcdbc5e`.
+- **Alcance:** ingesta de compras online con el patrón Stripe — sobre crudo en `raw_events` con
+  idempotencia por id de evento, hecho canónico F1, contacto por email (`getOrCreateContact`),
+  atribución (`atribuirDesdePayload`, source `hotmart`/`whop`) y **NINGUNA escritura en `sales` ni
+  `collections`** (el mapeo producto externo → producto de la app es decisión humana pendiente).
+- **Estado:** investigación de firmas hecha (Whop: Standard Webhooks `v1,base64` sobre
+  `{webhook-id}.{webhook-timestamp}.{body}` con tolerancia de 5 min; Hotmart: HMAC sobre el cuerpo
+  vía `X-Hotmart-Hmac` + mecanismo legacy `hottok`, ambos fail-closed — la doc oficial de Hotmart
+   está tras CloudFront y se cubren los dos mecanismos documentados). Implementación arrancando.
 
 ## DeepSeek: presupuesto de razonamiento — cerrado, 7-oct-2026 (Freebuff)
 

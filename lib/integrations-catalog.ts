@@ -718,10 +718,29 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
   {
     id: 'hotmart',
     title: 'Hotmart',
-    description: 'Cotejo de compras y suscripciones de tus productos vendidos en Hotmart.',
+    description:
+      'Compras y suscripciones de tus productos vendidos en Hotmart: cotejo por API y recepción en tiempo real por webhook.',
     category: 'pagos',
     test: true,
     required: ['HOTMART_CLIENT_ID', 'HOTMART_CLIENT_SECRET'],
+    webhookPath: '/api/{tenant}/evergreen/webhooks/hotmart',
+    pasos: [
+      {
+        titulo: 'Crea las credenciales de API en Hotmart',
+        detalle:
+          'En Hotmart abre Herramientas → Credenciales y crea una app: copia el Client ID y el Client Secret tal cual se enseñan. Son los que la app usa para cotejar las compras por API; el webhook no los necesita, pero sí el cotejo y la comprobación de conexión.',
+      },
+      {
+        titulo: 'Registra el webhook y define el token de firma',
+        detalle:
+          'Da de alta el webhook de Hotmart apuntando a la dirección de arriba y, al crearlo, define un token de firma (el que Hotmart llama token del webhook): un valor largo y aleatorio que INVENTAS TÚ, no te lo da Hotmart. Pega EXACTAMENTE el mismo valor en el campo de abajo — Hotmart firma cada entrega con ese token y la comparación es byte a byte.',
+      },
+      {
+        titulo: 'Suscríbete a los eventos de compra',
+        detalle:
+          'Al registrar el webhook, marca al menos PURCHASE_APPROVED, PURCHASE_COMPLETE y PURCHASE_REFUNDED: compra aprobada, entrega completa y reembolso. Cada entrega entra en la app en el momento, con su contacto encajado por el email del comprador y su atribución registrada.',
+      },
+    ],
     fields: [
       {
         key: 'HOTMART_CLIENT_ID',
@@ -745,17 +764,35 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         label: 'Webhook Secret (Hottok)',
         type: 'password',
         secret: true,
-        help: 'Token que valida los webhooks entrantes de compra/suscripción/reembolso de Hotmart.',
+        help: 'Token que INVENTAS TÚ al registrar el webhook en Hotmart (lo que Hotmart llama token del webhook). Llega firmado como X-Hotmart-Hmac (HMAC-SHA256 del cuerpo) o como x-hotmart-hottok, y debe ser idéntico, byte a byte, al definido en Hotmart.',
       },
     ],
   },
   {
     id: 'whop',
     title: 'Whop',
-    description: 'Cotejo de membresías y pagos de tu comunidad en Whop.',
+    description: 'Membresías y pagos de tu comunidad en Whop: cotejo por API y recepción en tiempo real por webhook.',
     category: 'pagos',
     test: true,
     required: ['WHOP_API_KEY'],
+    webhookPath: '/api/{tenant}/evergreen/webhooks/whop',
+    pasos: [
+      {
+        titulo: 'Genera la API Key de Whop',
+        detalle:
+          'En Whop abre Developer Settings y genera una API Key con acceso de lectura a membresías y pagos. Es la que la app usa para cotejar por API y para la comprobación de conexión; el webhook no la necesita, pero sí el cotejo.',
+      },
+      {
+        titulo: 'Crea el webhook y copia el signing secret',
+        detalle:
+          'En el Developer tab del panel de Whop, Create webhook: pega la dirección de arriba como URL. Whop te enseñará UNA VEZ un signing secret que empieza por ws_: cópialo antes de cerrar y pégalo en el campo de abajo. Whop firma cada entrega con él (Standard Webhooks) y la comparación es byte a byte.',
+      },
+      {
+        titulo: 'Suscríbete a los eventos de pago y membresía',
+        detalle:
+          'Al crear el webhook, marca al menos payment.succeeded, refund.created y membership.activated: pago exitoso, reembolso y membresía activada. Cada entrega entra en la app en el momento, con su contacto encajado por el email del comprador y su atribución registrada.',
+      },
+    ],
     fields: [
       {
         key: 'WHOP_API_KEY',
@@ -770,7 +807,8 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         label: 'Webhook Secret',
         type: 'password',
         secret: true,
-        help: 'Firma que valida los webhooks entrantes de Whop (altas/bajas/pagos de membresía).',
+        placeholder: 'ws_…',
+        help: 'Signing secret (empieza por ws_) que Whop te da UNA VEZ al crear el webhook. Firma cada entrega según la especificación Standard Webhooks y debe ser idéntico al de la columna Secret del webhook. Pégalo tal cual, sin quitar el prefijo ni codificarlo.',
       },
     ],
   },

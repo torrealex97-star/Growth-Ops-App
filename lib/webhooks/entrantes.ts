@@ -35,7 +35,7 @@ export type WebhookEntrante = {
    * (contratos): `ultimo_evento` quedará null — no se sustituye por "hay contratos firmados",
    * que sería derivar recepción de resultado.
    */
-  evidencia: 'audit_ghl' | 'audit_calendly' | 'audit_onboarding' | 'raw_stripe' | null
+  evidencia: 'audit_ghl' | 'audit_calendly' | 'audit_onboarding' | 'raw_stripe' | 'raw_hotmart' | 'raw_whop' | null
   /**
    * Aviso persistente cuando aplica. No es un error: es una limitación de la plataforma
    * que de otro modo nadie recordaría al configurar.
@@ -90,6 +90,38 @@ export const WEBHOOKS_ENTRANTES: WebhookEntrante[] = [
     // intentos con firma rechazada (rejected). El estado distingue ambos: "recibido" es la
     // última entrega válida, y el rechazo más reciente avisa de una firma que no cuadra.
     evidencia: 'raw_stripe',
+  },
+  {
+    id: 'hotmart',
+    groupId: 'hotmart',
+    titulo: 'Hotmart — compras',
+    descripcion: 'Compras aprobadas y completadas, reembolsos y disputas en el momento.',
+    path: '/api/{tenant}/evergreen/webhooks/hotmart',
+    metodo: 'POST',
+    auth: { tipo: 'firma', nombre: 'x-hotmart-hmac', configKey: 'HOTMART_WEBHOOK_SECRET' },
+    eventos: [
+      'PURCHASE_APPROVED',
+      'PURCHASE_COMPLETE',
+      'PURCHASE_REFUNDED',
+      'PURCHASE_CANCELED',
+      'PURCHASE_CHARGEBACK',
+    ],
+    // Igual que Stripe: el webhook escribe TODO en raw_events, incluidos los intentos con firma
+    // rechazada. El estado distingue "recibido" del rechazo de firma más reciente.
+    evidencia: 'raw_hotmart',
+    doc: '/docs/webhooks-hotmart.md',
+  },
+  {
+    id: 'whop',
+    groupId: 'whop',
+    titulo: 'Whop — pagos y membresías',
+    descripcion: 'Pagos exitosos y fallidos, reembolsos y altas de membresía en el momento.',
+    path: '/api/{tenant}/evergreen/webhooks/whop',
+    metodo: 'POST',
+    auth: { tipo: 'firma', nombre: 'webhook-signature', configKey: 'WHOP_WEBHOOK_SECRET' },
+    eventos: ['payment.succeeded', 'payment.failed', 'refund.created', 'membership.activated'],
+    evidencia: 'raw_whop',
+    doc: '/docs/webhooks-whop.md',
   },
   {
     id: 'contratos',
@@ -255,24 +287,49 @@ export function ultimoEventoEnAudit(evidencia: WebhookEntrante['evidencia'], act
   return { fecha: ultima.created_at, evidencia: nota }
 }
 
-/** Fila mínima de raw_events para la evidencia de Stripe. */
+/** Fila mínima de raw_events para la evidencia de Stripe (query del GET ya filtrada por fuente). */
 export type RawStripe = { received_at: string; processing_status: string }
 
+/** Fila mínima de raw_events para la evidencia por fuente. */
+export type RawEntrega = { source: string; received_at: string; processing_status: string }
+
 /**
- * Última entrega válida de Stripe y el rechazo de firma más reciente. Stripe escribe TODO en
- * raw_events — incluidos los intentos con firma rechazada — así que aquí se separan: "recibido"
- * es la última entrega válida, y `ultimo_rechazo` avisa de una firma que no cuadra.
+ * Última entrega válida y el rechazo de firma más reciente, POR FUENTE (raw_events).
+ *
+ * Stripe, Hotmart y Whop escriben TODO en raw_events — incluidos los intentos con firma rechazada
+ * — así que aquí se separan: "recibido" es la última entrega válida, y `ultimo_rechazo` avisa de
+ * una firma que no cuadra.
+ */
+export function eventosPorFuente(
+  rows: RawEntrega[]
+): Record<string, { ultimo_valido: UltimoEvento; ultimo_rechazo: UltimoEvento }> {
+  const salida: Record<string, { ultimo_valido: UltimoEvento; ultimo_rechazo: UltimoEvento }> = {}
+  const porFecha = (a: RawEntrega, b: RawEntrega) => Date.parse(b.received_at) - Date.parse(a.received_at)
+  for (const source of new Set(rows.map((r) => r.source))) {
+    const deLaFuente = rows.filter((r) => r.source === source)
+    const valido = deLaFuente.filter((r) => r.processing_status !== 'rejected').sort(porFecha)[0]
+    const rechazo = deLaFuente.filter((r) => r.processing_status === 'rejected').sort(porFecha)[0]
+    salida[source] = {
+      ultimo_valido: valido
+        ? { fecha: valido.received_at, evidencia: 'registro en la capa de eventos crudos (raw_events)' }
+        : null,
+      ultimo_rechazo: rechazo
+        ? { fecha: rechazo.received_at, evidencia: 'entrega con firma rechazada en raw_events' }
+        : null,
+    }
+  }
+  return salida
+}
+
+/**
+ * Estado de las entregas de Stripe. Las filas vienen ya filtradas por fuente (la query del GET de
+ * Integraciones); eventosPorFuente es la forma general que sirve para todas las fuentes raw.
  */
 export function eventosStripe(rows: RawStripe[]): { ultimo_valido: UltimoEvento; ultimo_rechazo: UltimoEvento } {
-  const porFecha = (a: RawStripe, b: RawStripe) => Date.parse(b.received_at) - Date.parse(a.received_at)
-  const valido = rows.filter((r) => r.processing_status !== 'rejected').sort(porFecha)[0]
-  const rechazo = rows.filter((r) => r.processing_status === 'rejected').sort(porFecha)[0]
-  return {
-    ultimo_valido: valido
-      ? { fecha: valido.received_at, evidencia: 'registro en la capa de eventos crudos (raw_events)' }
-      : null,
-    ultimo_rechazo: rechazo
-      ? { fecha: rechazo.received_at, evidencia: 'entrega con firma rechazada en raw_events' }
-      : null,
-  }
+  return (
+    eventosPorFuente(rows.map((r) => ({ ...r, source: 'stripe' })))['stripe'] ?? {
+      ultimo_valido: null,
+      ultimo_rechazo: null,
+    }
+  )
 }
