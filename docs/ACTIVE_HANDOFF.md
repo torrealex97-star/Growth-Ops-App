@@ -1,7 +1,23 @@
-## Atribución de UTMs en la sync por pull de agendas — 7-oct-2026 (Freebuff)
+## Atribución de UTMs en la sync por pull de agendas — cerrado en PR #389, barrido verificado, 7-oct-2026 (Freebuff)
 
-- **Reclamación:** `lib/integrations/citas-sync.ts`, `lib/contacts/atribucion.ts`, sus tests y esta
-  sección del tablero. Unidad única, rama corta, un PR.
+- **Fusionada y desplegada:** PR #389 (squash `9f011c2`), CI verde (Quality, Build, Smoke E2E,
+  gitleaks) y deploy production READY `dpl_JAJ4nxcsgVELXn9hVfWTW62B7Jiv`.
+- **Barrido histórico ejecutado y verificado en producción (mismo día):** minado de los
+  `appointments.raw_payload` locales (misma señal que devolvería la API de Calendly, sin llamadas
+  externas) y escrituras decididas por repetición del código canónico (`registrarToque`) sobre un
+  sb con estado, en una transacción única. Resultado: citas con UTM **0 → 72**, atribuciones con
+  `first_utm_source` **0 → 50** (de 183 a 200 filas), distribución direct 23 · IG 10 · TikTok 7 ·
+  linktr.ee 6 · ChatGPT 4. Idempotente: re-ejecutar el barrido no duplica nada (fill-if-empty).
+- **Pendiente de verificación pasiva:** la siguiente pasada del cron diario ejercitará la ruta
+  nueva en caliente (`atribuirDesdePayload`); comprobar en `integration_sync_runs` que no hay
+  fallos de atribución. El webhook de Calendly sigue sin configurar — configurarlo es tarea de Alex
+  en Calendly, no bloquea nada (la sync ya cubre el flujo).
+- **Causa raíz operativa sigue abierta (no es código):** los enlaces de reserva no llevan UTMs —
+  sin ellos Calendly/GHL no tienen nada que reportar. Pendiente en `PENDIENTES.md`
+  (UTMs/setter en GHL + pixel en la web).
+
+- **Reclamación original:** `lib/integrations/citas-sync.ts`, `lib/contacts/atribucion.ts`, sus
+  tests y esta sección del tablero. Unidad única, rama corta, un PR.
 - **Diagnóstico medido en producción (7-oct):** 0 de 640 citas con UTM (543 Calendly + 97 GHL) y
   0 de 183 atribuciones con UTM (todas `ghl_import`/`ghl` solo con `source`). El webhook de Calendly
   no está configurado: la vía principal es el cron/botón de sync — y esa vía no registraba
@@ -19,8 +35,6 @@
 - **Hotmart y Whop NO existen como integración** (cero referencias en el repo): capturar su
   atribución exige integración nueva (webhook + claves por subcuenta + mapeo de producto) —
   decisión de producto pendiente de Alex, no bloquea este cambio.
-- **Barrido histórico:** tras el merge y el deploy se ejecuta la sync completa de Calendly (ventana
-  de 5 años, idempotente) para rellenar lo recuperable; conteos antes/después verificados aquí.
 - **Regresión permanente:** `tests/metrics/atribucion.test.mjs` (semántica first/last ampliada) y
   `tests/citas-sync-atribucion.test.mjs` (contrato de la sync).
 
