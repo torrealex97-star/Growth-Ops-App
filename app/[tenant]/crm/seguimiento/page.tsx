@@ -11,7 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppointmentDetail } from '@/components/appointments/AppointmentDetail'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ClipboardList, MessageSquare, Table2, LayoutGrid, User as UserIcon, Clock, X } from 'lucide-react'
+import {
+  ClipboardList,
+  MessageSquare,
+  Table2,
+  LayoutGrid,
+  User as UserIcon,
+  Clock,
+  GripVertical,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useSearchParams } from 'next/navigation'
 import { readEnum } from '@/lib/filters/url-state'
@@ -114,6 +123,8 @@ export default function SeguimientoPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [currentUserName, setCurrentUserName] = useState<string>('')
   const [savingStageId, setSavingStageId] = useState<string | null>(null)
+  const [draggingAppointmentId, setDraggingAppointmentId] = useState<string | null>(null)
+  const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null)
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({})
   const [savingNotesId, setSavingNotesId] = useState<string | null>(null)
 
@@ -277,6 +288,18 @@ export default function SeguimientoPage() {
     } finally {
       setSavingStageId(null)
     }
+  }
+
+  const handleKanbanDrop = (stage: KanbanStage) => {
+    const appointmentId = draggingAppointmentId
+    setDraggingAppointmentId(null)
+    setDragOverStage(null)
+    if (!appointmentId || !canChangeStatus || savingStageId) return
+
+    const appointment = appointments.find((item) => item.id === appointmentId)
+    const nextStage = stage === 'sin_clasificar' ? null : stage
+    if (!appointment || appointment.followup_stage === nextStage) return
+    void handleFollowupStageChange(appointmentId, nextStage)
   }
 
   const handleSaveNotes = async (appointmentId: string) => {
@@ -492,8 +515,29 @@ export default function SeguimientoPage() {
           {KANBAN_STAGES.map((stage) => {
             const stageAppts = byStage[stage]
             const label = stage === 'sin_clasificar' ? 'Sin clasificar' : FOLLOWUP_STAGE_LABELS[stage]
+            const isDropTarget = dragOverStage === stage
             return (
-              <div key={stage} className="rounded-lg border border-border bg-card/40 flex flex-col">
+              <section
+                key={stage}
+                aria-label={`${label}, ${stageAppts.length} oportunidades`}
+                onDragOver={(event) => {
+                  if (!draggingAppointmentId) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  setDragOverStage(stage)
+                }}
+                onDragLeave={(event) => {
+                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+                  setDragOverStage((current) => (current === stage ? null : current))
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  handleKanbanDrop(stage)
+                }}
+                className={`rounded-lg border bg-card/40 flex flex-col transition-colors ${
+                  isDropTarget ? 'border-brand-500 bg-brand-500/5' : 'border-border'
+                }`}
+              >
                 <div className="px-3 py-2.5 border-b border-border/60 flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${FOLLOWUP_STAGE_DOT[stage]}`} />
@@ -508,19 +552,45 @@ export default function SeguimientoPage() {
                     <p className="text-xs text-muted-foreground text-center py-6">Sin agendas en esta etapa</p>
                   ) : (
                     stageAppts.map((a) => (
-                      <button
-                        type="button"
+                      <article
                         key={a.id}
-                        onClick={() => {
-                          setSelectedAppointment(a)
-                          setSheetOpen(true)
+                        draggable={canChangeStatus && savingStageId !== a.id}
+                        onDragStart={(event) => {
+                          setDraggingAppointmentId(a.id)
+                          event.dataTransfer.effectAllowed = 'move'
+                          event.dataTransfer.setData('text/plain', a.id)
                         }}
-                        className="w-full text-left rounded-lg border border-border bg-card p-3 hover:border-brand-500/50 transition-colors"
+                        onDragEnd={() => {
+                          setDraggingAppointmentId(null)
+                          setDragOverStage(null)
+                        }}
+                        className={`group rounded-lg border border-border bg-card p-3 transition-colors hover:border-brand-500/50 ${
+                          canChangeStatus ? 'cursor-grab active:cursor-grabbing' : ''
+                        } ${draggingAppointmentId === a.id ? 'opacity-40' : ''}`}
                       >
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {a.contacts?.full_name || 'Sin nombre'}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{a.contacts?.phone || '—'}</p>
+                        <div className="flex items-start gap-1.5">
+                          {canChangeStatus && (
+                            <GripVertical
+                              aria-hidden="true"
+                              className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAppointment(a)
+                              setSheetOpen(true)
+                            }}
+                            className="min-w-0 flex-1 text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                          >
+                            <span className="block text-sm font-medium text-foreground truncate">
+                              {a.contacts?.full_name || 'Sin nombre'}
+                            </span>
+                            <span className="block text-xs text-muted-foreground truncate">
+                              {a.contacts?.phone || '—'}
+                            </span>
+                          </button>
+                        </div>
                         <p className="text-2xs text-muted-foreground mt-1.5">
                           {STATUS_LABELS_LOCAL[a.status] || a.status}
                         </p>
@@ -536,11 +606,40 @@ export default function SeguimientoPage() {
                         <p className="text-2xs text-muted-foreground mt-1.5 flex items-center gap-1">
                           <Clock className="w-3 h-3" /> {timeAgo(a.last_contacted_at)}
                         </p>
-                      </button>
+                        {canChangeStatus && (
+                          <Select
+                            value={a.followup_stage ?? 'sin_clasificar'}
+                            disabled={savingStageId === a.id}
+                            onValueChange={(value) =>
+                              handleFollowupStageChange(
+                                a.id,
+                                value === 'sin_clasificar'
+                                  ? null
+                                  : (value as AppointmentWithRelations['followup_stage'])
+                              )
+                            }
+                          >
+                            <SelectTrigger
+                              aria-label={`Mover ${a.contacts?.full_name || 'contacto'} a otra etapa`}
+                              className="mt-2 h-8 w-full border-border bg-muted/40 text-xs"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                              <SelectItem value="sin_clasificar">Sin clasificar</SelectItem>
+                              {Object.entries(FOLLOWUP_STAGE_LABELS).map(([value, stageLabel]) => (
+                                <SelectItem key={value} value={value}>
+                                  {stageLabel}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </article>
                     ))
                   )}
                 </div>
-              </div>
+              </section>
             )
           })}
         </div>

@@ -27,13 +27,14 @@ const APIFY_TIMEOUT_MS = RESEARCH_LIMITS.requestTimeoutMs
 const APIFY_WEBHOOK_CLAIM_PREFIX = 'apify_webhook_claim:'
 
 export class ApifyError extends Error {
-  constructor(
-    message: string,
-    readonly status?: number,
-    readonly type?: string
-  ) {
+  readonly status?: number
+  readonly type?: string
+
+  constructor(message: string, status?: number, type?: string) {
     super(message)
     this.name = 'ApifyError'
+    this.status = status
+    this.type = type
   }
 }
 
