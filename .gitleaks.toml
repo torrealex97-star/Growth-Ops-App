@@ -7,9 +7,15 @@
 useDefault = true
 
 [allowlist]
-description = "Valores falsos usados por los tests del redactor de secretos (no son credenciales)"
+description = "Valores falsos usados por los tests del redactor de secretos y de las firmas de webhooks (no son credenciales)"
 regexes = [
   '''sk_test_1234567890''',
   '''sk_live_abcdef123456''',
   '''sk_test_51Hxyz9876''',
+  # Fixtures falsos de los tests de firma de los webhooks de Hotmart/Whop: constantes de test con
+  # forma de credencial para poder calcular HMACs reales en el arnés. Por valor exacto, igual que
+  # los de arriba — si una credencial REAL coincidiera con uno de estos valores, habría un problema
+  # mucho mayor que gitleaks.
+  '''mi-token-de-webhook-hotmart-1234567890''',
+  '''ws_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef''',
 ]

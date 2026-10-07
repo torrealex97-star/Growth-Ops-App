@@ -164,7 +164,11 @@ export function derivarHotmart(
  * un campo "por si acaso" es exactamente el patrón que corrompe datos (la regla de la casa: ante
  * la duda, no se decide). El email basta.
  */
-export function compradorHotmart(payload: PayloadHotmart): { email: string | null; fullName: string | null; phone: string | null } {
+export function compradorHotmart(payload: PayloadHotmart): {
+  email: string | null
+  fullName: string | null
+  phone: string | null
+} {
   const buyer = esObjeto(esObjeto(payload.data)?.buyer)
   const email = texto(buyer?.email)?.toLowerCase() ?? null
   const fullName = texto(buyer?.name)
