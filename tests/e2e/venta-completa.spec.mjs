@@ -32,8 +32,11 @@ test.describe('Venta completa — pago completo con cobro y contrato', () => {
     await cita.click()
     const detalleAgenda = page.getByText('Resultado de la llamada').locator('../..')
     await expect(detalleAgenda).toBeVisible()
-    await detalleAgenda.getByRole('button', { name: 'Sí' }).click()
-    await expect(detalleAgenda.getByRole('button', { name: 'Sí' })).toHaveAttribute('aria-pressed', 'true')
+    // El bloque contiene un Sí para asistencia y, tras marcarla, otro para oferta. El primero es
+    // siempre el de asistencia; conservar la misma referencia evita una coincidencia ambigua.
+    const asistenciaSi = detalleAgenda.getByRole('button', { name: 'Sí' }).first()
+    await asistenciaSi.click()
+    await expect(asistenciaSi).toHaveAttribute('aria-pressed', 'true')
 
     await page.goto(`/${tenant}/ventas/registro/nueva`)
     await expect(page.getByRole('heading', { name: 'Seleccionar Contacto' })).toBeVisible({ timeout: 20_000 })
