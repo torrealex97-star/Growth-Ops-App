@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CommissionsTable } from '@/components/commissions/CommissionsTable'
 import { CommissionInvoicePanel } from '@/components/commissions/CommissionInvoicePanel'
 import { CommissionControlCenter } from '@/components/commissions/CommissionControlCenter'
+import { CollaboratorSalesReview } from '@/components/commissions/CollaboratorSalesReview'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
@@ -133,7 +134,7 @@ export default function CommissionsPage() {
         percent, base_amount, commission_amount, direction, status, liquidation_month,
         approved_by, notes, created_at, updated_at,
         users!commissions_user_id_fkey(id, full_name, pays_commissions),
-        sales(id, contact_id, gross_amount, sale_date, contacts(full_name)),
+        sales(id, contact_id, gross_amount, sale_date, affiliate_commission_percent, contacts(full_name)),
         collections(id, gross_amount, commissionable_amount, processing_fee, payment_reference, collected_at)
       `
       )
@@ -581,6 +582,21 @@ export default function CommissionsPage() {
         loading={loading}
         restricted={esColaborador}
       />
+
+      {canApprove && filterMember !== 'all' && ['affiliate', 'collaborator', 'all'].includes(filterType) && (
+        <CollaboratorSalesReview
+          rows={filteredCommissions.filter(
+            (row) => row.participant_type === 'affiliate' || row.participant_type === 'collaborator'
+          )}
+          memberName={members.find((member) => member.id === filterMember)?.full_name || 'colaborador'}
+          tenant={tenant}
+          userId={filterMember}
+          onAdjusted={() => {
+            fetchCommissions()
+            fetchFuture()
+          }}
+        />
+      )}
 
       {/* Facturas debajo del control operativo: son evidencia del pago, no el punto de entrada. */}
       {currentUserId && (

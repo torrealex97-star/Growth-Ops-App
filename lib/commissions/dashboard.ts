@@ -1,7 +1,12 @@
 import type { CommissionWithRelations, ParticipantType } from '@/lib/types/database'
 
 export type CommissionDashboardRow = CommissionWithRelations & {
-  sales: CommissionWithRelations['sales'] & { gross_amount: number; sale_date: string }
+  sales: CommissionWithRelations['sales'] & {
+    gross_amount: number
+    sale_date: string
+    affiliate_commission_percent: number | null
+    contacts?: { full_name?: string | null } | null
+  }
   collections: (CommissionWithRelations['collections'] & { gross_amount: number; collected_at: string }) | null
 }
 
@@ -16,6 +21,20 @@ export type TeamCommissionSummary = {
   paid: number
   sales: number
   collections: number
+}
+
+export type CollaboratorSaleReview = {
+  saleId: string
+  contact: string
+  saleDate: string
+  booked: number
+  collected: number
+  base: number
+  percent: number
+  generated: number
+  outstanding: number
+  paid: number
+  hasLiquidated: boolean
 }
 
 const signedAmount = (row: CommissionDashboardRow) =>
@@ -67,6 +86,46 @@ export function buildTeamCommissionSummary(rows: CommissionDashboardRow[]): Team
   return [...groups.values()]
     .map(({ seenSales: _seenSales, seenCollections: _seenCollections, ...row }) => row)
     .sort((a, b) => b.collected - a.collected || b.generated - a.generated || a.name.localeCompare(b.name))
+}
+
+export function buildCollaboratorSaleReviews(rows: CommissionDashboardRow[]): CollaboratorSaleReview[] {
+  const sales = new Map<string, CollaboratorSaleReview & { collections: Set<string> }>()
+  for (const row of rows) {
+    if (!row.sale_id) continue
+    const sale = sales.get(row.sale_id) ?? {
+      saleId: row.sale_id,
+      contact: row.sales?.contacts?.full_name || 'Sin contacto',
+      saleDate: row.sales?.sale_date || row.created_at,
+      booked: Number(row.sales?.gross_amount || 0),
+      collected: 0,
+      base: 0,
+      percent: Number(row.sales?.affiliate_commission_percent ?? row.percent ?? 0),
+      generated: 0,
+      outstanding: 0,
+      paid: 0,
+      hasLiquidated: false,
+      collections: new Set<string>(),
+    }
+    if (row.collection_id && !sale.collections.has(row.collection_id)) {
+      sale.collections.add(row.collection_id)
+      sale.collected += Number(row.collections?.gross_amount || 0)
+    }
+    if (row.status !== 'cancelled') {
+      const amount = signedAmount(row)
+      sale.generated += amount
+      sale.base += Number(row.base_amount || 0) * (row.direction === 'negative' ? -1 : 1)
+      if (row.status === 'liquidated') {
+        sale.paid += amount
+        sale.hasLiquidated = true
+      } else if (row.status === 'pending' || row.status === 'approved') {
+        sale.outstanding += amount
+      }
+    }
+    sales.set(row.sale_id, sale)
+  }
+  return [...sales.values()]
+    .map(({ collections: _collections, ...sale }) => sale)
+    .sort((a, b) => b.saleDate.localeCompare(a.saleDate))
 }
 
 export function monthKey(date = new Date()): string {
