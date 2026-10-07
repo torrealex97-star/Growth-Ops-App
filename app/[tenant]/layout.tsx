@@ -79,6 +79,15 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     document.documentElement.dataset.accent = branding.accent
   }, [branding.accent])
 
+  useEffect(() => {
+    const updateBranding = (event: Event) => {
+      const next = (event as CustomEvent<TenantBranding>).detail
+      if (next?.name && (next.accent === 'brand' || next.accent === 'pink')) setBranding(next)
+    }
+    window.addEventListener('growthops:tenant-branding-changed', updateBranding)
+    return () => window.removeEventListener('growthops:tenant-branding-changed', updateBranding)
+  }, [])
+
   // La red de seguridad anterior solo actuaba al cambiar de RUTA. Pero el bug reportado
   // ("se queda bloqueada la app al usar los filtros de Ventas") ocurre SIN navegar: al
   // abrir/cerrar un <Select> de Radix (Setter/Closer/Producto/Periodo), Radix pone

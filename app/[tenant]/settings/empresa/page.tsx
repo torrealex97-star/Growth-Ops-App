@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Building2, Loader2, Save } from 'lucide-react'
+import { Building2, ImageUp, Loader2, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useTenantId } from '@/lib/tenant-context'
+import { useTenant, useTenantBranding, useTenantId } from '@/lib/tenant-context'
 import { BusinessContextCard } from '@/components/settings/BusinessContextCard'
 import { GrowthContextForm } from '@/components/settings/GrowthContextForm'
+import { TenantLogo } from '@/components/os/TenantLogo'
+import type { TenantBranding } from '@/lib/tenant-branding'
 
 type Company = {
   name: string
@@ -43,10 +45,13 @@ const EMPTY: Company = {
 }
 
 export default function EmpresaSettingsPage() {
+  const tenant = useTenant()
   const tenantId = useTenantId()
+  const branding = useTenantBranding()
   const [c, setC] = useState<Company>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [logoSaving, setLogoSaving] = useState(false)
 
   useEffect(() => {
     const sb = createClient()
@@ -90,6 +95,49 @@ export default function EmpresaSettingsPage() {
     </div>
   )
 
+  const publishBranding = (next: TenantBranding) => {
+    window.dispatchEvent(new CustomEvent<TenantBranding>('growthops:tenant-branding-changed', { detail: next }))
+  }
+
+  const uploadLogo = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setLogoSaving(true)
+    try {
+      const body = new FormData()
+      body.set('file', file)
+      const response = await fetch(`/api/${tenant}/evergreen/settings/branding`, { method: 'POST', body })
+      const result = (await response.json().catch(() => ({}))) as { branding?: TenantBranding; error?: string }
+      if (!response.ok || !result.branding) throw new Error(result.error || 'No se pudo subir el logo')
+      publishBranding(result.branding)
+      toast.success('Logo actualizado')
+    } catch (error) {
+      toast.error('No se pudo actualizar el logo', {
+        description: error instanceof Error ? error.message : 'Inténtalo de nuevo.',
+      })
+    } finally {
+      setLogoSaving(false)
+    }
+  }
+
+  const removeLogo = async () => {
+    setLogoSaving(true)
+    try {
+      const response = await fetch(`/api/${tenant}/evergreen/settings/branding`, { method: 'DELETE' })
+      const result = (await response.json().catch(() => ({}))) as { branding?: TenantBranding; error?: string }
+      if (!response.ok || !result.branding) throw new Error(result.error || 'No se pudo quitar el logo')
+      publishBranding(result.branding)
+      toast.success('Logo eliminado')
+    } catch (error) {
+      toast.error('No se pudo quitar el logo', {
+        description: error instanceof Error ? error.message : 'Inténtalo de nuevo.',
+      })
+    } finally {
+      setLogoSaving(false)
+    }
+  }
+
   if (loading) return <Skeleton className="h-64" />
 
   return (
@@ -106,6 +154,43 @@ export default function EmpresaSettingsPage() {
           </p>
         </div>
       </div>
+
+      <section className="rounded-lg border border-border bg-card/50 p-6" aria-labelledby="tenant-logo-title">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <TenantLogo branding={branding} className="h-16 w-16 rounded-lg border border-border bg-zinc-950 p-2" />
+            <div className="min-w-0">
+              <h2 id="tenant-logo-title" className="font-semibold text-foreground">
+                Logo de la subcuenta
+              </h2>
+              <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                Aparece en la navegación para que el equipo identifique el espacio activo. PNG, JPG o WebP, hasta 4 MB.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button asChild variant="outline" disabled={logoSaving}>
+              <label className="cursor-pointer">
+                {logoSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageUp className="mr-2 h-4 w-4" />}
+                {branding.logoUrl ? 'Cambiar logo' : 'Subir logo'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  onChange={uploadLogo}
+                  disabled={logoSaving}
+                />
+              </label>
+            </Button>
+            {branding.logoUrl && (
+              <Button type="button" variant="ghost" onClick={removeLogo} disabled={logoSaving}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Quitar
+              </Button>
+            )}
+          </div>
+        </div>
+      </section>
 
       <div className="rounded-lg border border-border bg-card/50 p-6 space-y-4">
         <div className="grid md:grid-cols-2 gap-4">

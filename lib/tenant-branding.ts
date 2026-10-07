@@ -8,6 +8,7 @@ type TenantAccent = 'brand' | 'pink'
 export interface TenantBranding {
   name: string
   accent: TenantAccent
+  logoUrl: string | null
 }
 
 // Nombre de plataforma por defecto para todos los tenants — se usa
@@ -16,8 +17,14 @@ export interface TenantBranding {
 const DEFAULT_BRAND_NAME = 'GrowthOps'
 
 export function resolveTenantBranding(settings: unknown): TenantBranding {
-  const branding = (settings as { branding?: { name?: unknown; accent?: unknown } } | null | undefined)?.branding
+  const branding = (
+    settings as { branding?: { name?: unknown; accent?: unknown; logo_url?: unknown } } | null | undefined
+  )?.branding
   const name = typeof branding?.name === 'string' && branding.name.trim() ? branding.name : DEFAULT_BRAND_NAME
   const accent: TenantAccent = branding?.accent === 'pink' ? 'pink' : 'brand'
-  return { name, accent }
+  const logoUrl =
+    typeof branding?.logo_url === 'string' && /^https:\/\//i.test(branding.logo_url.trim())
+      ? branding.logo_url.trim()
+      : null
+  return { name, accent, logoUrl }
 }
