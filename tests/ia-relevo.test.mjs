@@ -199,3 +199,45 @@ test('clave de Groq rechazada por el proveedor: error accionable en texto y en v
     restaurar()
   }
 })
+
+test('el presupuesto de DeepSeek deja sitio al razonamiento: max_tokens sale con el margen mínimo, no con el cap de la llamada', async () => {
+  // deepseek-flash razona ANTES de responder y ese razonamiento cuenta dentro de max_tokens.
+  // Medido en producción (7-oct): con el cap de la llamada (700), el razonamiento agotó el
+  // presupuesto y content llegó VACÍO (finish_reason "length", 2.437 caracteres de
+  // razonamiento, 0 de respuesta) — la factura parecía sin análisis y el relevo caía a un
+  // motor revocado. El mínimo no sube el coste: el cap no fuerza generación.
+  let cuerpo = null
+  const restaurar = conFetch(async (url, init) => {
+    assert.match(String(url), /api\.deepseek\.com/)
+    cuerpo = JSON.parse(init.body)
+    return jsonResp({ choices: [{ message: { content: '{"ok":1}' }, finish_reason: 'stop' }] })
+  })
+  try {
+    await completeText({ system: 's', user: 'u', maxTokens: 700 }, { DEEPSEEK_API_KEY: 'dk' })
+  } finally {
+    restaurar()
+  }
+  assert.ok(
+    cuerpo && cuerpo.max_tokens >= 8192,
+    `max_tokens=${cuerpo?.max_tokens} debe llevar el margen mínimo de razonamiento`
+  )
+})
+
+test('si DeepSeek corta por presupuesto (length y content vacío), el error lo dice y el relevo entra', async () => {
+  const restaurar = conFetch(async (url) => {
+    if (String(url).includes('api.deepseek.com'))
+      return jsonResp({ choices: [{ message: { content: '' }, finish_reason: 'length' }] })
+    if (String(url).includes('/models')) return jsonResp(GROQ_MODELOS)
+    return jsonResp({ choices: [{ message: { content: 'servido por groq' } }] })
+  })
+  try {
+    const r = await completeText(
+      { system: 's', user: 'u', maxTokens: 700 },
+      { DEEPSEEK_API_KEY: 'dk', GROQ_API_KEY: 'gq' }
+    )
+    assert.equal(r.engine, 'groq')
+    assert.match(r.fallbackReason ?? '', /agotó el presupuesto/)
+  } finally {
+    restaurar()
+  }
+})
