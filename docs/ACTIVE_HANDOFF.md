@@ -17,20 +17,43 @@
   opt-in (`RLS_LIVE_CONFIRM=1`) y no entra en la suite unitaria. La ejecución contra producción fue
   **NOT AVAILABLE**: el control de seguridad del host rechazó mutaciones con `service_role` aunque
   fueran autolimpiables. Ejecutarla solo con autorización explícita o contra un proyecto QA.
-## En curso — webhooks entrantes de Hotmart y Whop (Freebuff, 7-oct-2026)
+## Webhooks entrantes de Hotmart y Whop — cerrado en PR #394, desplegado y verificado, 7-oct-2026 (Freebuff)
 
-- **Reclamación:** rutas nuevas `app/api/[tenant]/evergreen/webhooks/hotmart/` y `.../whop/`,
-  `lib/webhooks/hotmart.ts` + `lib/webhooks/whop.ts` (verificación de firma), `lib/eventos/hotmart.ts`
-  + `lib/eventos/whop.ts` (derivación de hechos), `lib/integrations-catalog.ts` (grupos y claves
-  `HOTMART_WEBHOOK_SECRET`/`WHOP_WEBHOOK_SECRET`), `lib/webhooks/entrantes.ts`, migración de semilla
-  `event_types`, sus tests y esta sección. Rama `feat/webhooks-hotmart-whop` desde `fcdbc5e`.
-- **Alcance:** ingesta de compras online con el patrón Stripe — sobre crudo en `raw_events` con
-  idempotencia por id de evento, hecho canónico F1, contacto por email (`getOrCreateContact`),
-  atribución (`atribuirDesdePayload`, source `hotmart`/`whop`) y **NINGUNA escritura en `sales` ni
-  `collections`** (el mapeo producto externo → producto de la app es decisión humana pendiente).
-- **Estado:** autenticación contrastada con documentación oficial (Whop: Standard Webhooks
-  `v1,base64` sobre `{webhook-id}.{webhook-timestamp}.{body}` con tolerancia de 5 min; Hotmart 2.0:
-  Hottok único de cuenta en `X-HOTMART-HOTTOK`). Ambos fail-closed y por subcuenta.
+- **Fusionado y desplegado:** PR #394 (squash `88965d1`), CI verde completo (gitleaks, Quality,
+  Build, Smoke E2E, Release gate; run `37611353028`) y deploy production READY
+  `dpl_FSahswFjxg7fMY869LxRJ1DSvcNR`. Smoke real del transporte: `401 {"error":"Firma inválida"}`
+  IDÉNTICO en hotmart y whop con slug inexistente (sin oráculo de subcuentas) contra el deploy
+  vivo de `app.scalixsystems.com`.
+- **Qué entró:** la mitad receptora de las dos integraciones que solo tenían cotejo por API —
+  rutas `POST /api/[tenant]/evergreen/webhooks/{hotmart,whop}` sobre un MOTOR COMPARTIDO
+  (`lib/webhooks/entradaCompras.ts`), firma fail-closed POR SUBCUENTA (el secreto vive solo en el
+  panel, sin respaldo en el entorno): Hotmart `X-Hotmart-Hmac` (HMAC-SHA256 del cuerpo crudo,
+  base64 o hex) + legacy `x-hotmart-hottok`; Whop Standard Webhooks (`v1,base64` sobre
+  `{webhook-id}.{webhook-timestamp}.{body}`) con anti-replay de 5 min. Sobre crudo en `raw_events`
+  con idempotencia `(tenant, source, source_event_id)` que REPROCESA y sana parciales (no salta el
+  reintento), contacto por email (`lead_status 'venta'` y `lead_channel hotmart|whop` SOLO al
+  crear), atribución con `atribuirDesdePayload` y la FECHA REAL del hecho (pedido/pago, no
+  reintento), hecho canónico F1 sin PII. Panel: guía + `webhookPath` en los grupos hotmart/whop
+  (salen de `SIN_GUIA_TODAVIA`), evidencia `raw_*` por fuente (`eventosPorFuente` generaliza
+  `eventosStripe`), docs `docs/webhooks-hotmart.md` y `docs/webhooks-whop.md`.
+- **Semilla aplicada en producción y REGISTRADA:** `event_types` 10 → 25 filas (hotmart 9, whop
+  6) vía `execute_sql` idempotente, y versión `20261007120000` `event_types_hotmart_whop`
+  registrada en `supabase_migrations.schema_migrations` (formato espejo del repo: `statements`
+  con el SQL completo). Verificado con conteos.
+- **Verificación local:** suite 1444/1445 (único fallo: `apify-retry-scenario`, ambiental
+  preexistente; CI lo pasa), métricas 788/788, 19 tests nuevos de firma/derivación/contrato
+  (`tests/webhooks-hotmart-whop.test.mjs`), typecheck/lint/prettier ✓. Nota de CI: los fixtures
+  falsos del arnés de firma (forma de credencial) necesitaban allowlist POR VALOR EXACTO en
+  `.gitleaks.toml` — mismo mecanismo de los fixtures del redactor de secretos.
+- **Deliberadamente NO hace:** nada en `sales`/`collections` — el mapeo producto externo →
+  producto/plan de la app es decisión humana (misma regla que Stripe). La respuesta declara
+  `mueve_dinero`, `clase` e importe.
+- **Sigue pendiente de Alex:** (1) dar de alta los webhooks en Hotmart/Whop y pegar el token/secret
+  por subcuenta en Integraciones (URLs y pasos ya en el panel); (2) decisión de producto: bandeja
+  de sugerencias (como la de Stripe) para registrar esas compras como ventas con producto/plan.
+- **Siguiente unidad Freebuff (propuesta):** esa bandeja de compras Hotmart/Whop, o verificación
+  del cron de citas con atribución (pasada de las 11:18 aún sin comprobar en
+  `integration_sync_runs`).
 
 ## DeepSeek: presupuesto de razonamiento — cerrado, 7-oct-2026 (Freebuff)
 
