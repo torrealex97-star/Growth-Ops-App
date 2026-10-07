@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { atribuirDesdePayload, type ToqueAtribucion } from '@/lib/contacts/atribucion'
 import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
 import { mejorNombre } from '@/lib/contacts/resolve'
 import { estadoAlSincronizar, mapearEstadoExterno } from '@/lib/appointments/status'
@@ -506,6 +507,20 @@ export async function syncGhl(
         contact = { data: creado ? { id: creado.id } : null }
       }
       if (!contact.data) continue
+      // ATRIBUCIÓN (gemelo de Calendly): hoy los payloads de eventos GHL no traen UTMs (0 de
+      // 97), así que esto no escribe NADA y cero consultas (toque vacío ⇒ sin datos). Si los
+      // funnels de GHL empiezan a capturar UTMs, la sync por pull los conserva igual que el
+      // webhook, con la fecha del evento y sin presentar un toque antiguo como último.
+      try {
+        const atribuido = await atribuirDesdePayload(sb, tenantId, contact.data.id, event, {
+          source: 'ghl',
+          enEl: text(event.createdAt) || startsAt,
+        })
+        if (!atribuido.resultado.ok)
+          console.warn('[atribucion][ghl] no se pudo registrar el toque:', atribuido.resultado.error)
+      } catch (e) {
+        console.warn('[atribucion][ghl] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
+      }
       // Misma traducción que el webhook (lib/appointments/status.ts). Un estado que no se reconoce
       // se queda en 'scheduled', que es lo que GHL da por defecto a una cita recién creada.
       const status = mapearEstadoExterno(text(event.appointmentStatus) || text(event.status)) || 'scheduled'
@@ -643,6 +658,34 @@ export async function syncCalendly(
           dateAdded: event.created_at,
         })
         if (!contact) continue
+        // ATRIBUCIÓN (primer y último toque). La sync por pull es la vía principal por la que
+        // entran las citas — el webhook de Calendly no está configurado y 543 citas llegaron
+        // sin UTM aunque 72 de sus payloads los traían (invitee.tracking). El toque lleva la
+        // FECHA REAL de la reserva (invitee.created_at), no la de la pasada: rellena el primer
+        // toque si faltaba, nunca lo sobrescribe, y un toque antiguo no se presenta como
+        // último (ver registrarToque). Un fallo aquí NO tumba la sync: la cita vale más que
+        // su procedencia. Las UTMs también entran en la cita (solo si el payload las trae —
+        // el spread vacío no toca las columnas en re-syncs).
+        const toqueEnEl = text(invitee.created_at) || text(event.created_at) || undefined
+        let toque: ToqueAtribucion = {}
+        try {
+          const atribuido = await atribuirDesdePayload(sb, tenantId, contact.id, invitee, {
+            source: 'calendly',
+            enEl: toqueEnEl,
+          })
+          if (!atribuido.resultado.ok)
+            console.warn('[atribucion][calendly] no se pudo registrar el toque:', atribuido.resultado.error)
+          toque = atribuido.toque
+        } catch (e) {
+          console.warn('[atribucion][calendly] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
+        }
+        const utmDeCita = {
+          ...(toque.utmSource ? { utm_source: toque.utmSource } : {}),
+          ...(toque.utmMedium ? { utm_medium: toque.utmMedium } : {}),
+          ...(toque.utmCampaign ? { utm_campaign: toque.utmCampaign } : {}),
+          ...(toque.utmContent ? { utm_content: toque.utmContent } : {}),
+          ...(toque.utmTerm ? { utm_term: toque.utmTerm } : {}),
+        }
         // Closer = dueño del calendario (event_memberships[0].user_email), igual que el webhook:
         // resuelto por email o calendly_email y acotado a la subcuenta. SOLO se envía si hay
         // usuario resuelto: la pasada siguiente nunca pisa una asignación manual.
@@ -672,6 +715,7 @@ export async function syncCalendly(
           // Calendly no sabe si el lead se presentó: nunca retrocede una asistencia ya marcada.
           status: estadoAlSincronizar((existing.data as { status?: string | null } | null)?.status, status),
           source: 'calendly',
+          ...utmDeCita,
           ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
           calendar_name: text(event.name) || 'Calendly',
           meeting_url: text((event.location as Json | undefined)?.join_url),

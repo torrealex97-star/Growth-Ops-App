@@ -128,7 +128,11 @@ export async function registrarToque(
 
   const { data: existente, error: errorLectura } = await sb
     .from('contact_attributions')
-    .select('id, first_touch_at, collaborator_id')
+    // Se leen también el último toque y los first_* actuales: el update decide con ellos si
+    // rellena huecos del origen y si el toque entrante puede presentarse como el último.
+    .select(
+      'id, first_touch_at, last_touch_at, collaborator_id, source, funnel, first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term'
+    )
     .eq('tenant_id', tenantId)
     .eq('contact_id', contactId)
     .eq('is_primary', true)
@@ -136,7 +140,7 @@ export async function registrarToque(
 
   if (errorLectura) return { ok: false, error: errorLectura.message }
 
-  const ultimos = {
+  const previo = {
     last_utm_source: toque.utmSource ?? null,
     last_utm_medium: toque.utmMedium ?? null,
     last_utm_campaign: toque.utmCampaign ?? null,
@@ -154,12 +158,45 @@ export async function registrarToque(
   }
 
   if (existente) {
-    // OJO: aquí NO van los `first_*`. Es la línea que protege el origen.
     // Y aquí NO va `collaborator_id` en el update: FIRST VALID COLLABORATOR
     // ATTRIBUTION WINS — si el contacto ya tiene colaborador, un toque posterior
     // de otro enlace JAMÁS lo roba (la comisión de alguien no cambia en silencio).
-    const { error } = await sb.from('contact_attributions').update(ultimos).eq('id', existente.id)
-    if (error) return { ok: false, error: error.message }
+    //
+    // `first_*` SOLO se RELLENA si estaba vacío (null no es un toque: rellenar el hueco no
+    // es sobrescribir el origen — con valor, jamás). Es lo que permite a la sync por pull
+    // (cron calendly-ghl, history-sync, barrido histórico) atribuir el primer toque de
+    // contactos importados ANTES de que existiera este módulo (ghl_import sin UTMs).
+    //
+    // Toque ANTIGUO (la sync relee histórico): si llega con fecha anterior al último
+    // registrado, no puede presentarse como último — machacar last_* con un releo viejo
+    // haría que la pasada de hoy apareciera como el origen de un lead de hace semanas.
+    // En ese caso solo se rellenan huecos y last_* queda como estaba.
+    const filas = existente as unknown as {
+      first_touch_at: string | null
+      last_touch_at: string | null
+      source: string | null
+      funnel: string | null
+      first_utm_source: string | null
+      first_utm_medium: string | null
+      first_utm_campaign: string | null
+      first_utm_content: string | null
+      first_utm_term: string | null
+    }
+    const esAnterior = !!filas.last_touch_at && new Date(ahora).getTime() < new Date(filas.last_touch_at).getTime()
+    const huecos: Record<string, string> = {}
+    if (!filas.first_utm_source && toque.utmSource) huecos.first_utm_source = toque.utmSource
+    if (!filas.first_utm_medium && toque.utmMedium) huecos.first_utm_medium = toque.utmMedium
+    if (!filas.first_utm_campaign && toque.utmCampaign) huecos.first_utm_campaign = toque.utmCampaign
+    if (!filas.first_utm_content && toque.utmContent) huecos.first_utm_content = toque.utmContent
+    if (!filas.first_utm_term && toque.utmTerm) huecos.first_utm_term = toque.utmTerm
+    if (!filas.source && toque.source) huecos.source = toque.source
+    if (!filas.funnel && toque.funnel) huecos.funnel = toque.funnel
+    if (!filas.first_touch_at) huecos.first_touch_at = ahora
+    const ultimos = esAnterior ? huecos : { ...previo, ...huecos }
+    if (Object.keys(ultimos).length > 0) {
+      const { error } = await sb.from('contact_attributions').update(ultimos).eq('id', existente.id)
+      if (error) return { ok: false, error: error.message }
+    }
 
     // Relleno solo si estaba VACÍO (NULL = "Directo / Sin colaborador" es un
     // estado válido, y el primer colaborador válido se queda). El cambio queda
@@ -199,7 +236,38 @@ export async function registrarToque(
     first_utm_content: toque.utmContent ?? null,
     first_utm_term: toque.utmTerm ?? null,
     first_touch_at: ahora,
-    ...ultimos,
+    ...previo,
   })
   return error ? { ok: false, error: error.message } : { ok: true, accion: 'creada' }
+}
+
+/**
+ * Toque desde un payload de SYNC (cron calendly-ghl, history-sync, barrido histórico).
+ *
+ * La sync por pull es la vía principal por la que entran las citas — el webhook de Calendly no
+ * está configurado y las citas llegaban sin UTM aunque sus payloads los traían. Este helper lee
+ * el toque con las mismas rutas que el webhook (leerToque) y lo registra con la semántica de
+ * arriba: rellena el primer toque si faltaba, nunca lo sobrescribe, y un toque con fecha
+ * antigua nunca se presenta como el último. Sin datos en el payload no se escribe NADA (un
+ * hueco no es un cero) y sin llamada a la base: toque vacío ⇒ cero consultas.
+ */
+export async function atribuirDesdePayload(
+  sb: SupabaseClient,
+  tenantId: string,
+  contactId: string,
+  payload: unknown,
+  meta: { source?: string | null; enEl?: string | null } = {}
+): Promise<{ toque: ToqueAtribucion; resultado: ResultadoAtribucion }> {
+  const leido = leerToque(payload)
+  // El chequeo de "hay datos" se hace sobre lo que TRAE el payload, sin el source del
+  // proveedor: si no, todo payload sin UTMs produciría un toque con solo source=proveedor —
+  // filas de atribución vacías y, peor, un update que machacaría last_utm_* con nulls.
+  if (!toqueTieneDatos(leido)) return { toque: leido, resultado: { ok: true, accion: 'sin_datos' } }
+  const toque: ToqueAtribucion = {
+    ...leido,
+    source: leido.source ?? meta.source ?? null,
+    enEl: meta.enEl ?? undefined,
+  }
+  const resultado = await registrarToque(sb, tenantId, contactId, toque)
+  return { toque, resultado }
 }

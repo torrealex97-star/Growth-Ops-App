@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { leerToque, registrarToque, toqueTieneDatos } from '../../lib/contacts/atribucion.ts'
+import { atribuirDesdePayload, leerToque, registrarToque, toqueTieneDatos } from '../../lib/contacts/atribucion.ts'
 
 // ---------------------------------------------------------------------------------------------
 // LEER EL ORIGEN DE DONDE SUELE VENIR, sin exigir un formato: exigirlo significaría perder la
@@ -111,7 +111,21 @@ test('el primer toque crea la fila con first_* y last_*', async () => {
 })
 
 test('un toque posterior actualiza el último y NO toca el primero', async () => {
-  const { sb, escrito } = sbFalso({ existente: { id: 'a1', first_touch_at: '2026-09-01T10:00:00Z' } })
+  // La fila ya trae sus first_* con valor: el update no puede tocarlos NI REEMPLAZARLOS.
+  const { sb, escrito } = sbFalso({
+    existente: {
+      id: 'a1',
+      first_touch_at: '2026-09-01T10:00:00Z',
+      last_touch_at: '2026-09-01T10:00:00Z',
+      first_utm_source: 'meta',
+      first_utm_medium: 'cpc',
+      first_utm_campaign: 'closers',
+      first_utm_content: null,
+      first_utm_term: null,
+      source: 'calendly',
+      funnel: null,
+    },
+  })
   const r = await registrarToque(sb, 't1', 'c1', { utmSource: 'email', enEl: '2026-09-20T10:00:00Z' })
   assert.deepEqual(r, { ok: true, accion: 'actualizada' })
   assert.equal(escrito.update.last_utm_source, 'email')
@@ -147,6 +161,108 @@ test('un colaborador ya asignado no se pisa (first-valid-collaborator-wins): no 
   })
   assert.deepEqual(r, { ok: true, accion: 'actualizada' })
   assert.equal(escrito.isGuard, null, 'no debe intentar rellenar un colaborador ya asignado')
+})
+
+test('un toque posterior RELLENA el hueco del primer toque (null no es un toque)', async () => {
+  // Contacto importado (ghl_import) ANTES de que existieran UTMs: su fila no tiene first_utm_*.
+  // El primer toque con UTMs que llega —aunque sea posterior— se convierte en el primer toque
+  // conocido. Rellenar un hueco no es sobrescribir el origen: es dejar de no saber.
+  const { sb, escrito } = sbFalso({
+    existente: {
+      id: 'a1',
+      first_touch_at: '2026-09-01T10:00:00Z',
+      last_touch_at: '2026-09-01T10:00:00Z',
+      first_utm_source: null,
+      first_utm_medium: null,
+      first_utm_campaign: null,
+      first_utm_content: null,
+      first_utm_term: null,
+      source: 'ghl_import',
+      funnel: null,
+    },
+  })
+  const r = await registrarToque(sb, 't1', 'c1', { utmSource: 'IG', enEl: '2026-09-20T10:00:00Z' })
+  assert.deepEqual(r, { ok: true, accion: 'actualizada' })
+  assert.equal(escrito.update.first_utm_source, 'IG', 'rellena el hueco del primer toque')
+  assert.equal(escrito.update.last_utm_source, 'IG')
+  // El source ya tiene valor (ghl_import): no se pisa con el canal del toque.
+  assert.equal(escrito.update.source, undefined)
+})
+
+test('un toque ANTIGUO no se presenta como último: last_* queda y no se escribe nada si no hay huecos', async () => {
+  // La sync por pull relee histórico: un invitee reservado el día 10 NO puede machacar el
+  // last_touch del día 20 — la pasada de hoy no es el origen de un lead de hace semanas.
+  const { sb, escrito } = sbFalso({
+    existente: {
+      id: 'a1',
+      first_touch_at: '2026-09-01T10:00:00Z',
+      last_touch_at: '2026-09-20T10:00:00Z',
+      first_utm_source: 'meta',
+      first_utm_medium: 'cpc',
+      first_utm_campaign: 'closers',
+      first_utm_content: null,
+      first_utm_term: null,
+      source: 'meta',
+      funnel: null,
+    },
+  })
+  const r = await registrarToque(sb, 't1', 'c1', { utmSource: 'IG', enEl: '2026-09-10T10:00:00Z' })
+  assert.deepEqual(r, { ok: true, accion: 'actualizada' })
+  assert.equal(escrito.update, null, 'sin huecos que rellenar, un toque antiguo no escribe nada')
+  assert.equal(escrito.insert, null)
+})
+
+test('un toque antiguo rellena huecos del origen pero NUNCA el último', async () => {
+  const { sb, escrito } = sbFalso({
+    existente: {
+      id: 'a1',
+      first_touch_at: '2026-09-01T10:00:00Z',
+      last_touch_at: '2026-09-20T10:00:00Z',
+      first_utm_source: null,
+      first_utm_medium: null,
+      first_utm_campaign: null,
+      first_utm_content: null,
+      first_utm_term: null,
+      source: null,
+      funnel: null,
+    },
+  })
+  const r = await registrarToque(sb, 't1', 'c1', { utmSource: 'IG', source: 'calendly', enEl: '2026-09-10T10:00:00Z' })
+  assert.deepEqual(r, { ok: true, accion: 'actualizada' })
+  assert.equal(escrito.update.first_utm_source, 'IG')
+  assert.equal(escrito.update.source, 'calendly')
+  assert.equal(escrito.update.last_utm_source, undefined, 'last_* intacto: el toque era anterior')
+  assert.equal(escrito.update.last_touch_at, undefined, 'last_touch_at intacto')
+})
+
+test('atribuirDesdePayload: lee el tracking del invitee, sella la fecha del payload y crea la fila', async () => {
+  const { sb, escrito } = sbFalso({ existente: null })
+  const { toque, resultado } = await atribuirDesdePayload(
+    sb,
+    't1',
+    'c1',
+    { tracking: { utm_source: 'IG', utm_medium: 'Bio', utm_campaign: 'organic', utm_content: 'link_in_bio' } },
+    { source: 'calendly', enEl: '2026-09-05T10:00:00Z' }
+  )
+  assert.deepEqual(resultado, { ok: true, accion: 'creada' })
+  assert.equal(toque.utmSource, 'IG')
+  // El source declarado por el payload gana al del proveedor (misma semántica que el webhook).
+  assert.equal(escrito.insert.source, 'IG')
+  assert.equal(escrito.insert.first_touch_at, '2026-09-05T10:00:00Z', 'la fecha del toque es la de la reserva')
+})
+
+test('atribuirDesdePayload: payload sin atribución ⇒ sin datos y CERO consultas (un hueco no es un cero)', async () => {
+  let consultas = 0
+  const sb = {
+    from: () => {
+      consultas++
+      throw new Error('no debería consultarse')
+    },
+  }
+  const { toque, resultado } = await atribuirDesdePayload(sb, 't1', 'c1', { email: 'x@y.z' }, { source: 'calendly' })
+  assert.deepEqual(resultado, { ok: true, accion: 'sin_datos' })
+  assert.equal(toqueTieneDatos(toque), false, 'el toque devuelto no inventa origen')
+  assert.equal(consultas, 0)
 })
 
 test('un error de lectura no se traga: se devuelve', async () => {
