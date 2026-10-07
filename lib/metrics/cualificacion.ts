@@ -51,6 +51,21 @@ export type Cualificacion = {
   motivos: string[]
 }
 
+export type DimensionLeadScore = {
+  clave: 'compromiso' | 'capacidad' | 'inversion'
+  etiqueta: string
+  puntuacion: number | null
+  peso: number
+  motivo: string
+}
+
+export type LeadScore = {
+  puntuacion: number | null
+  nivel: 'alto' | 'medio' | 'bajo' | 'sin_datos'
+  confianza: 'alta' | 'media' | 'baja'
+  dimensiones: DimensionLeadScore[]
+}
+
 /**
  * Umbral y redacciones, configurables por subcuenta. Los valores por defecto NO son inventados:
  * salen de las respuestas realmente presentes en la base (473 agendas de Calendly).
@@ -79,6 +94,108 @@ const CONFIG_CUALIFICACION_POR_DEFECTO: ConfigCualificacion = {
 /** Quita acentos y baja a minúsculas: las redacciones varían en tildes entre versiones del form. */
 function normalizar(texto: string): string {
   return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+
+function numeroEscala(respuesta: string): number | null {
+  const valor = Number(normalizar(respuesta).match(/\b(10|[1-9])\b/)?.[1])
+  return Number.isFinite(valor) && valor >= 1 && valor <= 10 ? valor : null
+}
+
+function puntuarIntencion(respuesta: string): { puntuacion: number | null; motivo: string } {
+  const texto = normalizar(respuesta)
+  const escala = numeroEscala(respuesta)
+  if (escala !== null) return { puntuacion: escala, motivo: `Intención declarada ${escala}/10.` }
+  if (/no puedo|no estoy dispuest|no invertiria|ningun|nada|ahora no/.test(texto)) {
+    return { puntuacion: 0, motivo: `No declara disposición a invertir ("${respuesta.trim()}").` }
+  }
+  if (/\bsi\b|dispuest|puedo invertir|invertiria|cuento con/.test(texto)) {
+    return { puntuacion: 8, motivo: `Declara disposición a invertir ("${respuesta.trim()}").` }
+  }
+  const importe = leerIngresos(respuesta, { ...CONFIG_CUALIFICACION_POR_DEFECTO, ingresosMinimosEur: 1000 })
+  if (importe.min !== null) {
+    const puntuacion = importe.min >= 3000 ? 10 : importe.min >= 1000 ? 8 : importe.min >= 600 ? 5 : 2
+    return { puntuacion, motivo: `Capacidad de inversión interpretada de "${respuesta.trim()}".` }
+  }
+  return { puntuacion: null, motivo: 'La respuesta no permite medir la intención de inversión.' }
+}
+
+/**
+ * Lead scoring determinista y explicable. No sustituye la cualificación de marketing ni usa IA:
+ * resume tres señales declaradas por la persona y normaliza solo entre las dimensiones presentes.
+ * Una pregunta ausente reduce la confianza, pero no convierte el dato desconocido en cero.
+ */
+export function evaluarLeadScore(respuestas: RespuestaFormulario[]): LeadScore {
+  const compromisoFila = respuestas.find((r) =>
+    contieneAlguno(r.pregunta, ['compromiso', 'escala del 1 al 10', 'comprometid'])
+  )
+  const compromiso = compromisoFila ? numeroEscala(compromisoFila.respuesta) : null
+
+  const ingresosFila = respuestas.find((r) =>
+    contieneAlguno(r.pregunta, CONFIG_CUALIFICACION_POR_DEFECTO.patronesIngresos)
+  )
+  const ingresos = ingresosFila ? leerIngresos(ingresosFila.respuesta) : null
+  const capacidad =
+    ingresos?.min === null || ingresos?.min === undefined
+      ? null
+      : ingresos.min >= 3000
+        ? 10
+        : ingresos.min >= 2000
+          ? 8
+          : ingresos.min >= 1000
+            ? 6
+            : ingresos.min >= 600
+              ? 3
+              : 0
+
+  const inversionFila = respuestas.find((r) =>
+    contieneAlguno(r.pregunta, ['invertir', 'inversion', 'inversión', 'capacidad economica'])
+  )
+  const inversion = inversionFila ? puntuarIntencion(inversionFila.respuesta) : null
+
+  const dimensiones: DimensionLeadScore[] = [
+    {
+      clave: 'compromiso',
+      etiqueta: 'Compromiso',
+      puntuacion: compromiso,
+      peso: 0.4,
+      motivo:
+        compromiso === null
+          ? 'El formulario no aporta una escala de compromiso legible.'
+          : `Compromiso declarado ${compromiso}/10.`,
+    },
+    {
+      clave: 'capacidad',
+      etiqueta: 'Capacidad económica',
+      puntuacion: capacidad,
+      peso: 0.3,
+      motivo:
+        capacidad === null
+          ? ingresos?.motivo || 'El formulario no aporta ingresos mensuales legibles.'
+          : ingresos?.motivo || 'Capacidad económica declarada.',
+    },
+    {
+      clave: 'inversion',
+      etiqueta: 'Intención de inversión',
+      puntuacion: inversion?.puntuacion ?? null,
+      peso: 0.3,
+      motivo: inversion?.motivo || 'El formulario no pregunta por disposición a invertir.',
+    },
+  ]
+
+  const disponibles = dimensiones.filter((d) => d.puntuacion !== null)
+  const pesoDisponible = disponibles.reduce((total, d) => total + d.peso, 0)
+  const puntuacion =
+    pesoDisponible === 0
+      ? null
+      : Math.round((disponibles.reduce((total, d) => total + (d.puntuacion ?? 0) * d.peso, 0) / pesoDisponible) * 10)
+  const confianza = disponibles.length === 3 ? 'alta' : disponibles.length === 2 ? 'media' : 'baja'
+
+  return {
+    puntuacion,
+    nivel: puntuacion === null ? 'sin_datos' : puntuacion >= 75 ? 'alto' : puntuacion >= 45 ? 'medio' : 'bajo',
+    confianza,
+    dimensiones,
+  }
 }
 
 const contieneAlguno = (texto: string, patrones: string[]) =>

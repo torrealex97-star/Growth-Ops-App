@@ -15,7 +15,7 @@ import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/da
 import { STATUS_COLORS, STATUS_LABELS, isNoShow } from '@/lib/appointments/status'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
 import { extraerRespuestas } from '@/lib/metrics/respuestas-formulario'
-import { evaluarCualificacion } from '@/lib/metrics/cualificacion'
+import { evaluarCualificacion, evaluarLeadScore } from '@/lib/metrics/cualificacion'
 import { guessContactTimezone, TIMEZONE_OPTIONS } from '@/lib/timezone'
 import { useTenant } from '@/lib/tenant-context'
 
@@ -641,6 +641,7 @@ export function AppointmentDetail({
   // El veredicto de cualificación de MARKETING, con sus motivos. Es el que entra en el CPQBC, así que
   // enseñarlo aquí permite que quien llama vea lo mismo que cuenta el panel —y lo discuta si se equivoca.
   const veredicto = respuestasDelPayload.length > 0 ? evaluarCualificacion(respuestasDelPayload) : null
+  const leadScore = respuestasDelPayload.length > 0 ? evaluarLeadScore(respuestasDelPayload) : null
 
   const isCancelled = CANCELLED_STATUSES.includes(appointment.status)
 
@@ -1103,6 +1104,37 @@ export function AppointmentDetail({
                     ))}
                   </ul>
                 )}
+              </div>
+            )}
+            {leadScore?.puntuacion !== null && leadScore?.puntuacion !== undefined && (
+              <div className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-foreground">Lead score</p>
+                  <span
+                    className={
+                      leadScore.nivel === 'alto'
+                        ? 'font-semibold text-sky-400'
+                        : leadScore.nivel === 'medio'
+                          ? 'font-semibold text-amber-400'
+                          : 'font-semibold text-rose-400'
+                    }
+                  >
+                    {leadScore.puntuacion}/100
+                  </span>
+                </div>
+                <p className="mt-0.5 text-muted-foreground">
+                  Confianza {leadScore.confianza}; calculado solo con respuestas declaradas, sin IA.
+                </p>
+                <ul className="mt-1.5 space-y-0.5 text-muted-foreground">
+                  {leadScore.dimensiones.map((dimension) => (
+                    <li key={dimension.clave}>
+                      · {dimension.etiqueta}:{' '}
+                      {dimension.puntuacion === null ? 'sin dato' : `${dimension.puntuacion}/10`}
+                      {' — '}
+                      {dimension.motivo}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
             <dl className="space-y-3">

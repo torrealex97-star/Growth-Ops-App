@@ -1,3 +1,12 @@
+## Lead scoring explicable desde formularios — EN CURSO, 7-oct-2026 (Codex)
+
+- **Rama única:** `codex/lead-scoring-explicable`, creada desde `main` tras comprobar que no hay PRs
+  ni ramas remotas pendientes y que los checkouts `.freebuff/*` de Codebuff son históricos o ya
+  están fusionados mediante cambios equivalentes.
+- **Reclamación:** motor puro de puntuación sobre respuestas reales (compromiso, capacidad económica
+  e intención de inversión), presentación explicable en Agendas y regresiones focales. No añadir una
+  segunda fuente de cualificación ni usar IA para decidir.
+
 ## Logo configurable por subcuenta — CERRADO EN PR #398, 7-oct-2026 (Codex)
 
 - **Fusionado y desplegado:** PR #398, commit `7f642c02`; CI, Build, Smoke E2E, Release gate y
