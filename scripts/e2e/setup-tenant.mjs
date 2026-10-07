@@ -252,6 +252,7 @@ const EMAIL_COLAB = 'colaborador@qa-e2e.test'
 let colaboradorId
 let colaboradorPerfilId
 let contratoEquipoId
+let appointmentId
 {
   const { data: rolCloser } = await sb.from('roles').select('id').eq('key', 'closer').single()
   const existenteColabId = await buscarIdAuth(sb, EMAIL_COLAB)
@@ -327,6 +328,76 @@ let contratoEquipoId
   contratoEquipoId = contrato.id
 }
 
+// ── 10. ATRIBUCIÓN + AGENDA DEL RECORRIDO CRÍTICO ───────────────────────────
+// Fixture realista para que el E2E no empiece directamente en la venta: el contacto llega desde
+// un anuncio, agenda con un closer y la UI debe conservar esos vínculos hasta cobro y comisión.
+{
+  const { error: oldAppointmentErr } = await sb
+    .from('appointments')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .like('external_id', 'e2e-critical-%')
+  if (oldAppointmentErr) throw oldAppointmentErr
+  const { error: oldAttributionErr } = await sb
+    .from('contact_attributions')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('contact_id', contactDosId)
+    .eq('funnel', 'e2e-critical-journey')
+  if (oldAttributionErr) throw oldAttributionErr
+
+  const ahora = new Date().toISOString()
+  const { error: attrErr } = await sb.from('contact_attributions').insert({
+    tenant_id: tenantId,
+    contact_id: contactDosId,
+    source: 'meta_ads',
+    funnel: 'e2e-critical-journey',
+    utm_source: 'facebook',
+    utm_medium: 'paid_social',
+    utm_campaign: 'e2e-campaign',
+    utm_content: 'e2e-ad-42',
+    first_utm_source: 'facebook',
+    first_utm_medium: 'paid_social',
+    first_utm_campaign: 'e2e-campaign',
+    first_utm_content: 'e2e-ad-42',
+    last_utm_source: 'facebook',
+    last_utm_medium: 'paid_social',
+    last_utm_campaign: 'e2e-campaign',
+    last_utm_content: 'e2e-ad-42',
+    first_touch_at: ahora,
+    last_touch_at: ahora,
+    is_primary: true,
+  })
+  if (attrErr) throw attrErr
+
+  const cita = new Date()
+  cita.setMinutes(0, 0, 0)
+  cita.setHours(Math.min(Math.max(cita.getHours() + 1, 9), 19))
+  const { data: appointment, error: appointmentErr } = await sb
+    .from('appointments')
+    .insert({
+      tenant_id: tenantId,
+      external_source: 'manual',
+      external_id: `e2e-critical-${randomUUID()}`,
+      contact_id: contactDosId,
+      appointment_datetime: cita.toISOString(),
+      status: 'confirmed',
+      closer_id: colaboradorId,
+      source: 'meta_ads',
+      pipeline_name: 'E2E Critical Journey',
+      pipeline_stage: 'Agendada',
+      utm_source: 'facebook',
+      utm_medium: 'paid_social',
+      utm_campaign: 'e2e-campaign',
+      utm_content: 'e2e-ad-42',
+      raw_payload: { fixture: 'critical-journey' },
+    })
+    .select('id')
+    .single()
+  if (appointmentErr) throw appointmentErr
+  appointmentId = appointment.id
+}
+
 // ── SALIDA para Playwright (JSON en stdout, nada más) ────────────────────────
 process.stdout.write(
   JSON.stringify({
@@ -339,6 +410,7 @@ process.stdout.write(
     contactDosId,
     colaboradorPerfilId,
     contratoEquipoId,
+    appointmentId,
     email: EMAIL,
     slug: SLUG,
   })

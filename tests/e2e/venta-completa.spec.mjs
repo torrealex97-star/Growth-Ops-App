@@ -24,6 +24,20 @@ const tenant = fixtures.slug
 
 test.describe('Venta completa — pago completo con cobro y contrato', () => {
   test('wizard completo: contacto → producto/plan → equipo → confirmar → cobro + contrato', async ({ page }) => {
+    // El recorrido empieza en la agenda real: se confirma asistencia antes de registrar la venta.
+    await page.goto(`/${tenant}/crm/agendas`)
+    await page.getByRole('button', { name: 'Tabla' }).click()
+    const cita = page.getByRole('row', { name: /E2E Contacto Dos/ })
+    await expect(cita).toBeVisible({ timeout: 20_000 })
+    await cita.click()
+    const detalleAgenda = page.getByText('Resultado de la llamada').locator('../..')
+    await expect(detalleAgenda).toBeVisible()
+    // El bloque contiene un Sí para asistencia y, tras marcarla, otro para oferta. El primero es
+    // siempre el de asistencia; conservar la misma referencia evita una coincidencia ambigua.
+    const asistenciaSi = detalleAgenda.getByRole('button', { name: 'Sí' }).first()
+    await asistenciaSi.click()
+    await expect(asistenciaSi).toHaveAttribute('aria-pressed', 'true')
+
     await page.goto(`/${tenant}/ventas/registro/nueva`)
     await expect(page.getByRole('heading', { name: 'Seleccionar Contacto' })).toBeVisible({ timeout: 20_000 })
 
@@ -47,6 +61,12 @@ test.describe('Venta completa — pago completo con cobro y contrato', () => {
     // Paso 3 (equipo, opcional) → paso 4 (confirmación).
     await page.getByRole('button', { name: 'Siguiente' }).click()
     await expect(page.getByRole('heading', { name: 'Equipo' })).toBeVisible()
+    // La agenda es la fuente principal: closer y cita llegan seleccionados, no se reatribuyen a mano.
+    await expect(page.getByText('E2E Colaborador').first()).toBeVisible()
+    const agendaVinculada = page.getByText('Agenda vinculada (opcional)').locator('..')
+    const citaSeleccionada = agendaVinculada.locator('button').first()
+    await expect(citaSeleccionada).toBeVisible()
+    await expect(citaSeleccionada).toHaveClass(/bg-brand-600\/10/)
     await page.getByRole('button', { name: 'Siguiente' }).click()
     await expect(page.getByRole('heading', { name: 'Confirmar Venta' })).toBeVisible()
 
@@ -81,5 +101,18 @@ test.describe('Venta completa — pago completo con cobro y contrato', () => {
     await page.goto(`/${tenant}/contratos`)
     await expect(page.getByRole('heading', { level: 1, name: /Contratos/ })).toBeVisible()
     await expect(page.getByText('E2E Contacto Dos').first()).toBeVisible({ timeout: 15_000 })
+
+    // 5. La atribución first/last touch conserva la campaña y el anuncio originales.
+    await page.goto(`/${tenant}/crm/contactos/${fixtures.contactDosId}`)
+    await page.getByRole('tab', { name: /Atribución/ }).click()
+    await expect(page.getByText('e2e-campaign').first()).toBeVisible()
+    await expect(page.getByText('e2e-ad-42').first()).toBeVisible()
+
+    // 6. El cobro genera la comisión del closer y mantiene el enlace a la venta.
+    await page.goto(`/${tenant}/comisiones`)
+    const detalleComision = page.getByText('E2E Colaborador').last().locator('../..')
+    await expect(detalleComision).toBeVisible({ timeout: 20_000 })
+    await expect(detalleComision).toContainText('300,00 €')
+    await expect(detalleComision.getByRole('link', { name: 'Venta' })).toBeVisible()
   })
 })
