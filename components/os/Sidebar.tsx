@@ -11,6 +11,7 @@ import { Handshake } from 'lucide-react'
 import type { User } from '@/lib/types/database'
 import { NAV_SECTIONS, makeNavFilter, navHrefForRole, type NavItem } from '@/lib/nav'
 import { useTenant, useTenantBranding, useTenantId } from '@/lib/tenant-context'
+import { TenantLogo } from '@/components/os/TenantLogo'
 import { createClient } from '@/lib/supabase/client'
 
 interface SidebarProps {
@@ -136,11 +137,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="flex items-center justify-between px-6 py-6 border-b border-zinc-800">
           <div className="flex items-center gap-2.5">
-            <div className="relative flex h-9 w-9 items-center justify-center" aria-label={branding.name}>
-              <span className="text-[34px] font-semibold leading-none tracking-[-0.18em] text-white">
-                {branding.name.charAt(0)}
-              </span>
-            </div>
+            <TenantLogo branding={branding} />
             <span className="font-sans font-semibold text-white text-lg tracking-tight">{branding.name}</span>
           </div>
           <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" aria-label="Cerrar menú" onClick={onClose}>

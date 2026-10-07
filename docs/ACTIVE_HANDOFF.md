@@ -1,3 +1,16 @@
+## Logo configurable por subcuenta — LISTO PARA PR, 7-oct-2026 (Codex)
+
+- **Rama única propuesta:** `codex/tenant-logo-branding`, desde `main` tras fusionar PR #397.
+- **Reclamación:** `lib/tenant-branding.ts`, cabecera de `components/os/Sidebar.tsx`,
+  `app/[tenant]/settings/empresa/page.tsx`, endpoint acotado de branding y pruebas relacionadas.
+  No requiere migración: amplía el JSON existente `tenants.settings.branding`.
+- **Implementado:** carga/reemplazo/borrado desde Datos de empresa; actualización inmediata del
+  shell; fallback al monograma si falta/falla la imagen; solo admin de la subcuenta; PNG/JPG/WebP
+  con firma real y máximo 4 MB; auditoría y limpieza del objeto anterior en Storage.
+- **TESTED:** format, lint, typecheck, 1.463 unitarias, 788 métricas, dead-code informativo y build
+  de producción PASS. Las tres pruebas que consultan el esquema vivo pasaron al repetir la suite
+  con red habilitada. Pendiente CI/Preview y smoke real tras publicar.
+
 ## Fase 2 P0 — recorrido crítico y aislamiento multi-tenant — EN CURSO, 7-oct-2026 (Codex)
 
 - **Rama única actual:** `codex/critical-journey-e2e`, desde `main` tras fusionar PR #394. No abrir
@@ -44,8 +57,7 @@
   reintento), hecho canónico F1 sin PII. Panel: guía + `webhookPath` en los grupos hotmart/whop
   (salen de `SIN_GUIA_TODAVIA`), evidencia `raw_*` por fuente (`eventosPorFuente` generaliza
   `eventosStripe`), docs `docs/webhooks-hotmart.md` y `docs/webhooks-whop.md`.
-- **Semilla aplicada en producción y REGISTRADA:** `event_types` 10 → 25 filas (hotmart 9, whop
-  6) vía `execute_sql` idempotente, y versión `20261007120000` `event_types_hotmart_whop`
+- **Semilla aplicada en producción y REGISTRADA:** `event_types` 10 → 25 filas (hotmart 9, whop 6) vía `execute_sql` idempotente, y versión `20261007120000` `event_types_hotmart_whop`
   registrada en `supabase_migrations.schema_migrations` (formato espejo del repo: `statements`
   con el SQL completo). Verificado con conteos.
 - **Verificación local:** suite 1444/1445 (único fallo: `apify-retry-scenario`, ambiental
