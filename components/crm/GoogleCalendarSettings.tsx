@@ -151,12 +151,17 @@ export function GoogleCalendarSettings({ tenant }: { tenant: string }) {
         error?: string
         eventsWritten?: number
         failures?: string[]
+        reconciliation?: { matched: number; unresolved: number }
       }
       if (!response.ok && response.status !== 207) throw new Error(payload.error || 'No se pudo sincronizar')
       if (payload.failures?.length) {
         toast.warning(`Sincronización parcial: ${payload.failures.length} calendario(s) con error`)
       } else {
-        toast.success(`${payload.eventsWritten ?? 0} evento(s) revisados sin crear agendas duplicadas`)
+        const matched = payload.reconciliation?.matched ?? 0
+        const unresolved = payload.reconciliation?.unresolved ?? 0
+        toast.success(
+          `${payload.eventsWritten ?? 0} evento(s) revisados · ${matched} enlazados · ${unresolved} pendientes`
+        )
       }
       await load(false)
     } catch (error) {

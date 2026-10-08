@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-08T11:24:20.379Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-08T13:11:39.275Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -2958,6 +2958,11 @@ export type EsquemaPublico = {
         last_seen_at: string | null
         created_at: string | null
         updated_at: string | null
+        appointment_id: string | null
+        reconciliation_status: string | null
+        match_method: string | null
+        reconciliation_reason: string | null
+        reconciled_at: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -2981,6 +2986,11 @@ export type EsquemaPublico = {
         last_seen_at: string | null | undefined
         created_at: string | null | undefined
         updated_at: string | null | undefined
+        appointment_id: string | null | undefined
+        reconciliation_status: string | null | undefined
+        match_method: string | null | undefined
+        reconciliation_reason: string | null | undefined
+        reconciled_at: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -3004,6 +3014,11 @@ export type EsquemaPublico = {
         last_seen_at: string | undefined
         created_at: string | undefined
         updated_at: string | undefined
+        appointment_id: string | undefined
+        reconciliation_status: string | undefined
+        match_method: string | undefined
+        reconciliation_reason: string | undefined
+        reconciled_at: string | undefined
       }
     }
     GoogleConnectedCalendars: {

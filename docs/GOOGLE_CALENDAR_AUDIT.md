@@ -1,7 +1,7 @@
 # Google Calendar por closer — auditoría y plan de conciliación
 
-Fecha: 8-oct-2026. Estado: Fases 0–1 cerradas; Fase 2 implementada y migrada, pendiente de OAuth
-real de un closer para verificar la ingesta contra Google. No confundir **INSPECTED/TESTED** con
+Fecha: 8-oct-2026. Estado: Fases 0–3 cerradas; pendiente de OAuth real de un closer para verificar
+la ingesta contra Google. No confundir **INSPECTED/TESTED** con
 **VERIFIED**.
 
 ## Impact map
@@ -16,16 +16,16 @@ Riesgo: **HIGH** (OAuth, credenciales, RLS, multi-tenant e identidad de citas).
 
 ## Estado real antes del cambio
 
-| Componente | Estado | Evidencia |
-| --- | --- | --- |
-| Agenda comercial canónica | STABLE | `appointments`, aislada por `tenant_id` |
-| Contacto/closer | STABLE | `contacts`, `users`, `tenant_members`, `appointments.closer_id` |
-| Calendly/GHL | STABLE/PARTIAL | pull + webhooks sobre `appointments`; mapeo de dueño por email/calendario |
-| OAuth Google | PARTIAL | state HMAC, refresh token cifrado; solo `ga4`/`gmail`, conexión de tenant |
-| Google Calendar operativo | MISSING | sin scopes, CalendarList, events.list, syncToken ni watch |
-| Dedupe de agendas | PARTIAL | `(tenant_id, external_id)` + helper por ID/contacto+minuto; sin iCal UID/recurrencia |
-| Conciliación Calendar↔CRM | MISSING | no existía inventario externo ni estados de reconciliación |
-| Logs de sync | STABLE | `integration_sync_runs`, todavía sin job Calendar |
+| Componente                | Estado         | Evidencia                                                                            |
+| ------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| Agenda comercial canónica | STABLE         | `appointments`, aislada por `tenant_id`                                              |
+| Contacto/closer           | STABLE         | `contacts`, `users`, `tenant_members`, `appointments.closer_id`                      |
+| Calendly/GHL              | STABLE/PARTIAL | pull + webhooks sobre `appointments`; mapeo de dueño por email/calendario            |
+| OAuth Google              | PARTIAL        | state HMAC, refresh token cifrado; solo `ga4`/`gmail`, conexión de tenant            |
+| Google Calendar operativo | MISSING        | sin scopes, CalendarList, events.list, syncToken ni watch                            |
+| Dedupe de agendas         | PARTIAL        | `(tenant_id, external_id)` + helper por ID/contacto+minuto; sin iCal UID/recurrencia |
+| Conciliación Calendar↔CRM | IMPLEMENTED    | reglas explicables, estados persistidos y escritura batch solo por `service_role`     |
+| Logs de sync              | STABLE         | `integration_sync_runs`, todavía sin job Calendar                                    |
 
 ## Decisiones de arquitectura
 
@@ -64,8 +64,10 @@ Riesgo: **HIGH** (OAuth, credenciales, RLS, multi-tenant e identidad de citas).
 2. **Ingesta (implementada):** tabla de eventos externos no comerciales, initial sync paginado,
    `syncToken`, cancelaciones, recurrencia y job idempotente con `integration_sync_runs`. Rango
    inicial: 90 días atrás y 180 hacia delante. Los emails de asistentes solo se persisten como HMAC.
-3. **Matching:** ID explícito > iCal UID > contacto invitado + franja/closer; reglas puras y
-   explicables, sin match silencioso ambiguo.
+3. **Matching (implementado en rama):** ID explícito del proveedor > contacto invitado +
+   franja/closer; reglas puras y explicables. El `iCal UID` se conserva para diagnóstico, pero no se
+   usa hasta disponer de su equivalente canónico en `appointments`. Cero o varios candidatos jamás
+   producen un match silencioso.
 4. **Conciliación:** GOOGLE_ONLY, CRM_ONLY, MATCHED, POSSIBLE_DUPLICATE, TIME/CLOSER/STATUS_MISMATCH,
    CONTACT_MISSING, IGNORED_PRIVATE y SYNC_ERROR.
 5. **Producto/Health:** bandeja en Agendas, resumen de equipo para liderazgo, Action Center y Data
@@ -82,6 +84,8 @@ Riesgo: **HIGH** (OAuth, credenciales, RLS, multi-tenant e identidad de citas).
 2. Cada closer autoriza su propia cuenta desde CRM › Agendas › Mi Google Calendar, selecciona al
    menos un calendario y pulsa **Sincronizar ahora**.
 
-Las migraciones `20261008122259` y `20261008130000` están aplicadas, registradas y verificadas en
-producción. A 8-oct todavía hay 0 cuentas Calendar autorizadas; por ello la ingesta real sigue
-**INSPECTED + TESTED**, no **VERIFIED** contra datos de Google.
+Las migraciones `20261008122259`, `20261008130000` y `20261008143000` están aplicadas, registradas y
+verificadas en producción. Para la última se comprobó además que la función batch no es ejecutable
+por `anon` ni `authenticated`, pero sí por `service_role`. A 8-oct todavía hay 0 cuentas Calendar
+autorizadas; por ello la ingesta y conciliación reales siguen **INSPECTED + TESTED**, no
+**VERIFIED** contra datos de Google.
