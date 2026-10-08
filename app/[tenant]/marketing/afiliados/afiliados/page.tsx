@@ -42,11 +42,12 @@ import { metodoDePlan } from '@/lib/metrics/agregados'
 import { cuentaComoVenta } from '@/lib/analytics'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { enlaceDeColaborador } from '@/lib/tracking/enlaces'
+import { enlaceDeColaborador, enlaceDeRol } from '@/lib/tracking/enlaces'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, PERIOD_LABELS, type PeriodPreset } from '@/lib/filters/period'
 import { useTenant, useTenantId, useSesion } from '@/lib/tenant-context'
 import { toast } from 'sonner'
+import { ROLE_LABELS, type AppRole } from '@/lib/auth/permissions'
 
 // --- Tipos (columnas reales de la BD, ver lib/types/database-generated.ts) ---
 type PerfilColaborador = {
@@ -95,6 +96,22 @@ type ComisionRow = {
 }
 type ContactoRow = { id: string; full_name: string | null; lead_status: string | null; created_at: string | null }
 type CitaRow = { id: string; contact_id: string | null; appointment_datetime: string | null; status: string | null }
+type PersonaComisionable = {
+  id: string
+  full_name: string | null
+  email: string | null
+  tracking_code: string | null
+  affiliate_code: string | null
+  pays_commissions: boolean
+  is_active: boolean
+  roles?: { key: string; name: string | null } | { key: string; name: string | null }[] | null
+}
+type PlantillaEnlace = { id: string; name: string; base_url: string; applies_to: string[] | null }
+
+function rolDePersona(persona: PersonaComisionable): string {
+  const role = Array.isArray(persona.roles) ? persona.roles[0] : persona.roles
+  return role?.key ?? ''
+}
 
 type KpiColaborador = {
   contactos: number
@@ -140,12 +157,15 @@ export default function AfiliadosPage() {
   const [ventas, setVentas] = useState<VentaRow[]>([])
   const [cobros, setCobros] = useState<CobroRow[]>([])
   const [comisiones, setComisiones] = useState<ComisionRow[]>([])
+  const [personasComisionables, setPersonasComisionables] = useState<PersonaComisionable[]>([])
+  const [plantillasEnlaces, setPlantillasEnlaces] = useState<PlantillaEnlace[]>([])
 
   // §46 Filtros: periodo global + estado + búsqueda.
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<string>('all')
+  const [rolFiltro, setRolFiltro] = useState<string>('all')
   const [busqueda, setBusqueda] = useState('')
 
   const [detalleId, setDetalleId] = useState<string | null>(null)
@@ -165,6 +185,7 @@ export default function AfiliadosPage() {
     { campaign_id: string; affiliate_id: string; created_at: string | null }[]
   >([])
   const [copiadoId, setCopiadoId] = useState<string | null>(null)
+  const [enlaceSeleccionado, setEnlaceSeleccionado] = useState<Record<string, string>>({})
 
   const rango = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
   const puedeGestionar = sesion?.rol === 'admin' || sesion?.rol === 'director'
@@ -177,15 +198,37 @@ export default function AfiliadosPage() {
       setKpiError(false)
       const sb = createClient()
 
-      // La entidad estructurada es la fuente del listado (§45). Con el join a users
-      // salen nombre y email sin segunda consulta.
-      const { data: perfilesData, error: perfilesError } = await sb
-        .from('collaborator_profiles')
-        .select(
-          'id, user_id, code, name, status, default_commission_percent, notes, created_at, users(full_name, email)'
-        )
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false })
+      const esColab = (sesion.user as { roles?: { key?: string } | null }).roles?.key === 'affiliate'
+      let perfilesData: unknown[] = []
+      let personasData: PersonaComisionable[] = []
+      let perfilesError: string | null = null
+      if (esColab) {
+        // El propio colaborador solo necesita su perfil. La RLS mantiene esta
+        // lectura acotada y no se le expone el directorio del equipo.
+        const result = await sb
+          .from('collaborator_profiles')
+          .select(
+            'id, user_id, code, name, status, default_commission_percent, notes, created_at, users(full_name, email)'
+          )
+          .eq('tenant_id', tenantId)
+          .eq('user_id', sesion.userId)
+          .order('created_at', { ascending: false })
+        perfilesData = result.data ?? []
+        perfilesError = result.error?.message ?? null
+      } else {
+        // La ruta resuelve primero tenant_members: `users` es global y nunca
+        // debe convertirse en un directorio cross-tenant desde el navegador.
+        const response = await fetch(`/api/${tenant}/evergreen/colaboradores`)
+        const payload = (await response.json()) as {
+          colaboradores?: unknown[]
+          personasComisionables?: PersonaComisionable[]
+          error?: string
+        }
+        if (!response.ok) perfilesError = payload.error ?? `HTTP ${response.status}`
+        perfilesData = payload.colaboradores ?? []
+        personasData = payload.personasComisionables ?? []
+        setPersonasComisionables(personasData)
+      }
       if (!mounted) return
       if (perfilesError) {
         setKpiError(true)
@@ -195,15 +238,11 @@ export default function AfiliadosPage() {
       const lista = (perfilesData ?? []) as PerfilColaborador[]
       setPerfiles(lista)
 
-      if (lista.length === 0) {
-        setLoading(false)
-        return
-      }
-
       // KPIs: atribuciones estructuradas + ventas + cobros + LEDGER del propio motor.
       // Las comisiones se acotan a los user_ids de los perfiles: nunca todo el ledger.
-      const userIds = lista.map((p) => p.user_id).filter((x): x is string => !!x)
-      const esColab = (sesion.user as { roles?: { key?: string } | null }).roles?.key === 'affiliate'
+      const userIds = esColab
+        ? lista.map((p) => p.user_id).filter((x): x is string => !!x)
+        : personasData.map((p) => p.id)
       const [attrRes, apptRes, salesRes, collRes, commRes] = await Promise.all([
         fetchAllRows(() =>
           sb
@@ -301,14 +340,22 @@ export default function AfiliadosPage() {
       } else {
         // Vista admin: campañas activas para el enlace de referido, campañas TODAS
         // para las métricas, y las asignaciones que escribe el registro público.
-        const [{ data: campRes }, { data: todasRes }, { data: membersRes }] = await Promise.all([
-          sb.from('affiliate_campaigns').select('id, name, base_url').eq('tenant_id', tenantId).eq('is_active', true),
-          sb.from('affiliate_campaigns').select('id, name, is_active, registration_slug').eq('tenant_id', tenantId),
-          sb
-            .from('affiliate_campaign_members')
-            .select('campaign_id, affiliate_id, created_at')
-            .eq('tenant_id', tenantId),
-        ])
+        const [{ data: campRes }, { data: todasRes }, { data: membersRes }, { data: templatesRes }] = await Promise.all(
+          [
+            sb.from('affiliate_campaigns').select('id, name, base_url').eq('tenant_id', tenantId).eq('is_active', true),
+            sb.from('affiliate_campaigns').select('id, name, is_active, registration_slug').eq('tenant_id', tenantId),
+            sb
+              .from('affiliate_campaign_members')
+              .select('campaign_id, affiliate_id, created_at')
+              .eq('tenant_id', tenantId),
+            sb
+              .from('link_templates')
+              .select('id, name, base_url, applies_to')
+              .eq('tenant_id', tenantId)
+              .eq('is_active', true)
+              .order('name'),
+          ]
+        )
         if (!mounted) return
         setCampanas((campRes ?? []) as { id: string; name: string; base_url: string }[])
         setCampanasTodas(
@@ -317,6 +364,7 @@ export default function AfiliadosPage() {
         setAsignaciones(
           (membersRes ?? []) as { campaign_id: string; affiliate_id: string; created_at: string | null }[]
         )
+        setPlantillasEnlaces((templatesRes ?? []) as PlantillaEnlace[])
       }
       setLoading(false)
     }
@@ -326,7 +374,7 @@ export default function AfiliadosPage() {
     }
     // `sesion` entra en las dependencias: sin ella, la carga se quedaría con el valor capturado
     // en el primer render. Está memorizada en el layout, así que no provoca bucle.
-  }, [sesion, tenantId])
+  }, [sesion, tenant, tenantId])
 
   // --- Agregaciones (memoria: escala de una subcuenta, igual que el resto de vistas) ---
   const contactosPorPerfil = useMemo(() => {
@@ -400,6 +448,49 @@ export default function AfiliadosPage() {
       .map((p) => ({ perfil: p, kpi: kpiDePerfil(p) }))
       .sort((a, b) => b.kpi.comisiones - a.kpi.comisiones || b.kpi.cash - a.kpi.cash)
   }, [perfiles, estadoFiltro, busqueda, kpiDePerfil])
+
+  const rolesComisionables = useMemo(
+    () => Array.from(new Set(personasComisionables.map(rolDePersona).filter(Boolean))).sort(),
+    [personasComisionables]
+  )
+
+  const equipoComisionable = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    return personasComisionables.filter((persona) => {
+      const role = rolDePersona(persona)
+      if (rolFiltro !== 'all' && role !== rolFiltro) return false
+      if (!q) return true
+      return `${persona.full_name ?? ''} ${persona.email ?? ''} ${persona.tracking_code ?? ''} ${
+        persona.affiliate_code ?? ''
+      } ${ROLE_LABELS[role as AppRole] ?? role}`
+        .toLowerCase()
+        .includes(q)
+    })
+  }, [busqueda, personasComisionables, rolFiltro])
+
+  const enlacesDePersona = useCallback(
+    (persona: PersonaComisionable) => {
+      const role = rolDePersona(persona)
+      const code = persona.tracking_code || persona.affiliate_code
+      if (!code) return []
+      if (role === 'affiliate') {
+        const campanasAsignadas = new Set(
+          asignaciones.filter((a) => a.affiliate_id === persona.id).map((a) => a.campaign_id)
+        )
+        return campanas
+          .filter((campana) => campanasAsignadas.has(campana.id))
+          .map((campana) => ({ id: campana.id, name: campana.name, url: enlaceDeRol(campana.base_url, role, code) }))
+      }
+      return plantillasEnlaces
+        .filter((plantilla) => plantilla.applies_to?.includes(role))
+        .map((plantilla) => ({
+          id: plantilla.id,
+          name: plantilla.name,
+          url: enlaceDeRol(plantilla.base_url, role, code),
+        }))
+    },
+    [asignaciones, campanas, plantillasEnlaces]
+  )
 
   const totales = useMemo(
     () =>
@@ -498,6 +589,24 @@ export default function AfiliadosPage() {
       await navigator.clipboard.writeText(enlace)
       setCopiadoId(perfil.id)
       toast.success('Enlace copiado', { description: enlace })
+      setTimeout(() => setCopiadoId(null), 2000)
+    } catch {
+      toast.error('No se pudo copiar al portapapeles')
+    }
+  }
+
+  const copiarEnlaceEquipo = async (persona: PersonaComisionable) => {
+    const enlaces = enlacesDePersona(persona)
+    const selectedId = enlaceSeleccionado[persona.id] ?? enlaces[0]?.id
+    const enlace = enlaces.find((item) => item.id === selectedId)
+    if (!enlace) {
+      toast.error('Esta persona todavía no tiene un enlace disponible')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(enlace.url)
+      setCopiadoId(`equipo:${persona.id}`)
+      toast.success('Enlace personal copiado', { description: enlace.name })
       setTimeout(() => setCopiadoId(null), 2000)
     } catch {
       toast.error('No se pudo copiar al portapapeles')
@@ -633,11 +742,25 @@ export default function AfiliadosPage() {
                   </option>
                 ))}
               </select>
-              {(estadoFiltro !== 'all' || busqueda || periodPreset !== DEFAULT_PERIOD) && (
+              <select
+                aria-label="Filtrar por rol"
+                value={rolFiltro}
+                onChange={(e) => setRolFiltro(e.target.value)}
+                className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-brand-500"
+              >
+                <option value="all">Todos los roles</option>
+                {rolesComisionables.map((role) => (
+                  <option key={role} value={role}>
+                    {ROLE_LABELS[role as AppRole] ?? role}
+                  </option>
+                ))}
+              </select>
+              {(estadoFiltro !== 'all' || rolFiltro !== 'all' || busqueda || periodPreset !== DEFAULT_PERIOD) && (
                 <button
                   type="button"
                   onClick={() => {
                     setEstadoFiltro('all')
+                    setRolFiltro('all')
                     setBusqueda('')
                     setPeriodPreset(DEFAULT_PERIOD)
                     setCustomFrom('')
@@ -678,6 +801,101 @@ export default function AfiliadosPage() {
               description="Por fecha de creación; incluye ajustes negativos"
             />
           </div>
+
+          {/* Directorio canónico: el mismo flag que habilita el motor de comisiones. */}
+          <section className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Equipo que recibe comisiones</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Incluye setters, closers y colaboradores marcados para comisionar en Configuración → Usuarios.
+                </p>
+              </div>
+              <span className="text-xs text-muted-foreground">{equipoComisionable.length} personas</span>
+            </div>
+            {equipoComisionable.length === 0 ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">
+                No hay personas que coincidan con los filtros y tengan activada la opción «Recibe comisiones».
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {equipoComisionable.map((persona) => {
+                  const role = rolDePersona(persona)
+                  const enlaces = enlacesDePersona(persona)
+                  const selectedId = enlaceSeleccionado[persona.id] ?? enlaces[0]?.id ?? ''
+                  return (
+                    <div
+                      key={persona.id}
+                      className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1.4fr)_minmax(120px,.6fr)_minmax(0,1.5fr)] md:items-center"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {persona.full_name ?? 'Sin nombre'}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">{persona.email ?? 'Sin email'}</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="rounded border border-border bg-muted/30 px-2 py-1 text-foreground">
+                          {ROLE_LABELS[role as AppRole] ?? (role || 'Sin rol')}
+                        </span>
+                        {!persona.is_active && <span className="text-muted-foreground">Inactivo</span>}
+                      </div>
+                      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center md:justify-end">
+                        {enlaces.length > 0 ? (
+                          <>
+                            <label className="sr-only" htmlFor={`enlace-${persona.id}`}>
+                              Enlace para {persona.full_name ?? persona.email ?? 'miembro'}
+                            </label>
+                            <select
+                              id={`enlace-${persona.id}`}
+                              value={selectedId}
+                              onChange={(e) =>
+                                setEnlaceSeleccionado((prev) => ({ ...prev, [persona.id]: e.target.value }))
+                              }
+                              className="min-w-0 flex-1 rounded border border-border bg-background px-2.5 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+                            >
+                              {enlaces.map((enlace) => (
+                                <option key={enlace.id} value={enlace.id}>
+                                  {enlace.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => copiarEnlaceEquipo(persona)}
+                              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-brand-500/50 active:translate-y-px"
+                            >
+                              {copiadoId === `equipo:${persona.id}` ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                              Copiar enlace
+                            </button>
+                          </>
+                        ) : (
+                          <Link
+                            href={
+                              role === 'affiliate'
+                                ? `/${tenant}/marketing/afiliados/campanas`
+                                : `/${tenant}/recursos/enlaces`
+                            }
+                            className="text-xs text-brand-400 hover:underline underline-offset-4"
+                          >
+                            {persona.tracking_code || persona.affiliate_code
+                              ? role === 'affiliate'
+                                ? 'Asignar una campaña'
+                                : 'Crear plantilla para este rol'
+                              : 'Generar código de tracking'}
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
 
           {/* Altas por campaña: la conexión campañas ↔ atribución estructurada */}
           {puedeGestionar && (

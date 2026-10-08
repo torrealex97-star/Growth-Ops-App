@@ -1,3 +1,17 @@
+# LISTO PARA PR · equipo comisionable visible en Colaboradores (Codex, 8-oct-2026)
+
+- **Rama única:** `codex/commissionable-team-panel`.
+- **Implementado:** el panel `marketing/afiliados/afiliados` incorpora un directorio de todas las
+  personas de la subcuenta con `pays_commissions=true`, incluidos setters y closers. La lectura se
+  acota primero por `tenant_members`; nunca expone el directorio global de `users`.
+- **Enlaces:** cada persona puede elegir y copiar sus plantillas activas según rol; los afiliados
+  conservan sus campañas asignadas. `Recursos → Enlaces` y `Colaboradores` comparten ahora el helper
+  canónico: setter/closer usa `utm_term`; afiliado usa `utm_content` + `ref`.
+- **Sin impacto económico:** no cambia cálculos, porcentajes, ledger ni datos de producción.
+- **TESTED local aislado:** formato PASS; lint PASS (solo avisos heredados); typecheck PASS; regresión
+  focal 4/4; unitarias completas 1.499/1.499, incluidas las pruebas de esquema vivo; métricas 788/788;
+  build limpio de producción PASS. `knip` conserva únicamente deuda heredada fuera de alcance.
+
 # CERRADO · hardening de credenciales OAuth en Integraciones (PR #408, 8-oct-2026)
 
 - **Rama única:** `codex/oauth-credential-hardening`.

@@ -32,7 +32,31 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ colaboradores: data ?? [] })
+
+  // El panel no es solo el programa de referidos: toda persona de ESTA
+  // subcuenta que tenga `pays_commissions=true` debe ser localizable allí,
+  // incluidos setters y closers. `users` no tiene tenant_id, por eso el scope
+  // se obtiene primero desde tenant_members y nunca desde una lista global.
+  const { data: memberships, error: membershipsError } = await sb
+    .from('tenant_members')
+    .select('user_id')
+    .eq('tenant_id', t.tenantId)
+  if (membershipsError) return NextResponse.json({ error: membershipsError.message }, { status: 500 })
+
+  const userIds = (memberships ?? []).map((membership) => membership.user_id)
+  let personasComisionables: unknown[] = []
+  if (userIds.length > 0) {
+    const { data: users, error: usersError } = await sb
+      .from('users')
+      .select('id, full_name, email, tracking_code, affiliate_code, pays_commissions, is_active, roles(key, name)')
+      .in('id', userIds)
+      .eq('pays_commissions', true)
+      .order('full_name')
+    if (usersError) return NextResponse.json({ error: usersError.message }, { status: 500 })
+    personasComisionables = users ?? []
+  }
+
+  return NextResponse.json({ colaboradores: data ?? [], personasComisionables })
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
