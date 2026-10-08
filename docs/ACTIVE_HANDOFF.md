@@ -1,4 +1,4 @@
-# En curso · hardening de credenciales OAuth en Integraciones (Codex, 8-oct-2026)
+# CERRADO · hardening de credenciales OAuth en Integraciones (PR #408, 8-oct-2026)
 
 - **Rama única:** `codex/oauth-credential-hardening`.
 - **Hallazgo reproducido en producción:** el gestor de contraseñas puede autocompletar el email y la
@@ -17,6 +17,8 @@
   declara `META_APP_SECRET`, `RESEND_API_KEY` y `YOUTUBE_CLIENT_SECRET` indescifrables con la
   `CONFIG_ENC_KEY` actual; requieren volver a introducir los valores originales. Google no tiene un
   cliente OAuth válido configurado. No se imprimió, copió ni modificó ningún secreto.
+- **Quality Gate remoto:** format, lint, typecheck, dead-code, unitarias, métricas, Build, Smoke E2E,
+  gitleaks, Vercel Preview y Release gate: PASS.
 
 # Google Calendar por closer — FASE 3 CERRADA EN PR #406, 8-oct-2026 (Codex)
 
