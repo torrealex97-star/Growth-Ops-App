@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-03T19:54:39.381Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-08T11:01:45.379Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -2935,6 +2935,53 @@ export type EsquemaPublico = {
         updated_at: string | undefined
       }
     }
+    GoogleConnectedCalendars: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        connection_id: string | null
+        owner_user_id: string | null
+        external_calendar_id: string | null
+        calendar_name: string | null
+        role: string | null
+        time_zone: string | null
+        is_enabled: boolean | null
+        last_sync_at: string | null
+        last_error_code: string | null
+        created_at: string | null
+        updated_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        connection_id: string | null | undefined
+        owner_user_id: string | null | undefined
+        external_calendar_id: string | null | undefined
+        calendar_name: string | null | undefined
+        role: string | null | undefined
+        time_zone: string | null | undefined
+        is_enabled: boolean | null | undefined
+        last_sync_at: string | null | undefined
+        last_error_code: string | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        connection_id: string | undefined
+        owner_user_id: string | undefined
+        external_calendar_id: string | undefined
+        calendar_name: string | undefined
+        role: string | undefined
+        time_zone: string | undefined
+        is_enabled: boolean | undefined
+        last_sync_at: string | undefined
+        last_error_code: string | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
+      }
+    }
     GoogleOauthConnections: {
       Row: {
         id: string | null
@@ -2950,6 +2997,7 @@ export type EsquemaPublico = {
         connected_by: string | null
         created_at: string | null
         updated_at: string | null
+        owner_user_id: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -2965,6 +3013,7 @@ export type EsquemaPublico = {
         connected_by: string | null | undefined
         created_at: string | null | undefined
         updated_at: string | null | undefined
+        owner_user_id: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -2980,6 +3029,7 @@ export type EsquemaPublico = {
         connected_by: string | undefined
         created_at: string | undefined
         updated_at: string | undefined
+        owner_user_id: string | undefined
       }
     }
     GrowthContext: {
@@ -4994,6 +5044,9 @@ export type EsquemaPublico = {
         created_at: string | null
         updated_at: string | null
         stripe_fee: number | string | null
+        refunded_at: string | null
+        fx_rate_to_eur: number | string | null
+        fx_rate_date: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -5012,6 +5065,9 @@ export type EsquemaPublico = {
         created_at: string | null | undefined
         updated_at: string | null | undefined
         stripe_fee: number | string | null | undefined
+        refunded_at: string | null | undefined
+        fx_rate_to_eur: number | string | null | undefined
+        fx_rate_date: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -5030,6 +5086,9 @@ export type EsquemaPublico = {
         created_at: string | undefined
         updated_at: string | undefined
         stripe_fee: number | string | undefined
+        refunded_at: string | undefined
+        fx_rate_to_eur: number | string | undefined
+        fx_rate_date: string | undefined
       }
     }
     StripePriceMap: {
