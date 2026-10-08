@@ -7,9 +7,7 @@ const nextConfig = {
   // checking validity of types" entra en thrashing con la carga de tipos actual y muere al cap de
   // 45 min: 5 deployments production ERROR el 28-sep (10:37Z-15:16Z) con BUILD_EXCEEDED_MAXIMUM_TIME
   // y producción congelada en f18e336. En la build de Vercel se salta; en local y CI se mantiene.
-  ...(process.env.VERCEL
-    ? { typescript: { ignoreBuildErrors: true }, eslint: { ignoreDuringBuilds: true } }
-    : {}),
+  ...(process.env.VERCEL ? { typescript: { ignoreBuildErrors: true }, eslint: { ignoreDuringBuilds: true } } : {}),
   // Este repositorio vive dentro de una carpeta que también contiene otro package-lock.
   // Fijar la raíz evita que Next tracee desde /Documents y meta archivos ajenos en el
   // artefacto serverless (más tamaño, I/O y riesgo de un despliegue incompleto).
@@ -35,6 +33,14 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'",
+          },
+          {
+            // Telemetría previa al endurecimiento: no bloquea recursos. El receptor conserva solo
+            // directivas y orígenes, nunca paths/query/script-sample. Tras observar producción se
+            // podrá trasladar cada directiva validada a la CSP aplicada de arriba.
+            key: 'Content-Security-Policy-Report-Only',
+            value:
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https: wss:; media-src 'self' blob: https:; frame-src 'self' https:; worker-src 'self' blob:; manifest-src 'self'; report-uri /api/security/csp-report",
           },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },

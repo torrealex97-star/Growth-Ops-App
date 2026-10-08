@@ -23,6 +23,9 @@ const PUBLIC_PATHS = [
   // Webhook de Apify (investigación externa): se autentica con APIFY_WEBHOOK_SECRET (si está
   // definido) y por "run conocido" — como los demás webhooks, no lleva sesión de usuario.
   '/api/webhooks/apify',
+  // Receptor de Content-Security-Policy-Report-Only. Los navegadores lo llaman sin sesión; la
+  // ruta limita tamaño/frecuencia y elimina paths, queries y muestras antes de registrar.
+  '/api/security/csp-report',
   // Callback de OAuth con Google. No puede llevar la subcuenta en la ruta porque el URI de
   // redirección se registra literalmente en Google Cloud, así que no hay tenant del que exigir
   // sesión aquí. La ruta se autentica con el `state` FIRMADO que verifica ella misma: sin firma
