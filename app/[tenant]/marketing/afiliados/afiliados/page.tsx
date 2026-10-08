@@ -37,6 +37,7 @@ import {
   Copy,
   Check,
   CalendarCheck,
+  ArrowRight,
 } from 'lucide-react'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import { cuentaComoVenta } from '@/lib/analytics'
@@ -802,7 +803,8 @@ export default function AfiliadosPage() {
             />
           </div>
 
-          {/* Directorio canónico: el mismo flag que habilita el motor de comisiones. */}
+          {/* Directorio canónico: la persona es el punto de entrada. El enlace de captación es
+              una herramienta secundaria dentro de su operación, no su "perfil". */}
           <section className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -823,15 +825,19 @@ export default function AfiliadosPage() {
                   const role = rolDePersona(persona)
                   const enlaces = enlacesDePersona(persona)
                   const selectedId = enlaceSeleccionado[persona.id] ?? enlaces[0]?.id ?? ''
+                  const perfilHref = `/${tenant}/comisiones?member=${encodeURIComponent(persona.id)}`
                   return (
                     <div
                       key={persona.id}
-                      className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1.4fr)_minmax(120px,.6fr)_minmax(0,1.5fr)] md:items-center"
+                      className="grid gap-3 px-4 py-3 transition-colors hover:bg-muted/30 md:grid-cols-[minmax(0,1.2fr)_minmax(120px,.55fr)_minmax(0,1.35fr)_auto] md:items-center"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
+                        <Link
+                          href={perfilHref}
+                          className="truncate text-sm font-medium text-foreground underline-offset-4 hover:text-brand-300 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+                        >
                           {persona.full_name ?? 'Sin nombre'}
-                        </p>
+                        </Link>
                         <p className="truncate text-xs text-muted-foreground">{persona.email ?? 'Sin email'}</p>
                       </div>
                       <div className="flex items-center gap-2 text-xs">
@@ -890,6 +896,14 @@ export default function AfiliadosPage() {
                           </Link>
                         )}
                       </div>
+                      <Link
+                        href={perfilHref}
+                        className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border border-brand-500/40 bg-brand-500/10 px-3 py-2 text-xs font-medium text-brand-300 transition-colors hover:bg-brand-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+                        aria-label={`Abrir perfil financiero de ${persona.full_name ?? persona.email ?? 'miembro'}`}
+                      >
+                        Abrir perfil
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Link>
                     </div>
                   )
                 })}

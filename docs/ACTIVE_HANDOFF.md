@@ -1,3 +1,26 @@
+# CERRADO EN RAMA · perfiles financieros de equipo comisionable (9-oct-2026, Codex)
+
+- **Rama única:** `codex/commission-payee-profiles`.
+- **Alcance reclamado:** directorio `marketing/afiliados/afiliados`, deep-link por miembro hacia
+  `comisiones`, filtro inicial por persona, contexto de perfil y facturas del miembro seleccionado.
+  No cambia fórmulas, porcentajes, ledger, RLS, campañas ni datos de producción.
+- **Objetivo:** que la persona —setter, closer o colaborador— sea el punto de entrada. El enlace de
+  tracking queda como acción secundaria; el perfil financiero reúne ventas, cash, estados de
+  liquidación, ajustes auditables y facturas reutilizando las fuentes canónicas existentes.
+- **Riesgo:** HIGH por tratarse de presentación y filtrado de datos financieros; cualquier enlace
+  debe conservar el tenant y toda lectura mantiene el alcance que ya aplica la página de Comisiones.
+- **Implementado:** cada persona del equipo comisionable abre un perfil financiero compartible en
+  `comisiones?member=<user_id>`; el nombre y el CTA llevan al mismo destino. El perfil reutiliza el
+  ledger canónico, conserva filtros y navegación atrás/adelante, acota las facturas al miembro y
+  mantiene plantillas/enlaces como acciones secundarias. Las facturas privadas ya no se abren con
+  una ruta cruda: solicitan una URL firmada al storage antes de descargarse.
+- **TESTED en clon aislado:** formato PASS; lint PASS con avisos heredados; typecheck PASS; focales
+  8/8; unitarias completas 1.501 PASS + 3 omitidas y 0 fallos; métricas 788/788; build limpio de
+  producción PASS. La primera build sin red falló únicamente al descargar Google Fonts; repetida
+  con red autorizada, PASS. `knip` no detecta deuda nueva y conserva hallazgos heredados.
+- **Sin cambios de datos:** no se modifica Supabase, RLS, fórmulas, porcentajes, ledger ni registros
+  de producción. La query `member` solo filtra filas que la sesión ya estaba autorizada a leer.
+
 # CERRADO EN RAMA · observabilidad CSP en modo solo informe (9-oct-2026, Codex)
 
 - **Rama única:** `codex/csp-reporting`.
