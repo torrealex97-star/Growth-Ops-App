@@ -26,7 +26,7 @@ function serviceClient() {
 // en vez de dejarle ante un JSON: viene de una pantalla y tiene que volver a una pantalla.
 function backToGoogleSurface(
   tenant: string,
-  provider: 'ga4' | 'gmail' | 'calendar',
+  provider: 'ga4' | 'gmail' | 'calendar' | 'youtube',
   params: Record<string, string>,
   req: NextRequest
 ): NextResponse {
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta desconocida' }, { status: 404 })
     const tenantId = (tenantRow as { id: string }).id
 
-    const creds = await googleCredentials(tenantId)
+    const creds = await googleCredentials(tenantId, provider)
     if (!creds) return backToGoogleSurface(tenant, provider, { google: 'error', motivo: 'sin_credenciales' }, req)
 
     const token = await exchangeCode(code, creds)
@@ -99,6 +99,30 @@ export async function GET(req: NextRequest) {
     const faltan = SCOPES[provider].filter((s) => !granted.includes(s))
 
     const email = token.access_token ? await fetchGoogleEmail(token.access_token) : null
+
+    // YouTube conserva el contrato existente del resto de la app: los jobs leen el refresh token
+    // desde integration_settings. El callback reemplaza el antiguo copiar/pegar del Playground.
+    if (provider === 'youtube') {
+      const { error } = await sb.from('integration_settings').upsert(
+        {
+          tenant_id: tenantId,
+          key: 'YOUTUBE_REFRESH_TOKEN',
+          value: encryptSecret(token.refresh_token),
+          is_secret: true,
+          updated_by: userId,
+        },
+        { onConflict: 'tenant_id,key' }
+      )
+      if (error) return backToGoogleSurface(tenant, provider, { google: 'error', motivo: 'no_se_pudo_guardar' }, req)
+      return backToGoogleSurface(
+        tenant,
+        provider,
+        faltan.length > 0
+          ? { google: 'permisos_incompletos', servicio: provider }
+          : { google: 'conectada', servicio: provider },
+        req
+      )
+    }
 
     const connectionValues = {
       tenant_id: tenantId,

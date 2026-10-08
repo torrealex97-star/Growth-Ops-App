@@ -87,8 +87,9 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         label: 'Access Token',
         type: 'password',
         secret: true,
-        help: 'Token de System User que no caduque.',
+        help: 'Se rellena con OAuth o puedes pegar un token de System User que no caduque.',
       },
+      { key: 'META_TOKEN_EXPIRES_AT', label: 'Caducidad OAuth Meta', type: 'text', secret: false, hidden: true },
       {
         key: 'META_APP_SECRET',
         advanced: true,
@@ -153,7 +154,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       {
         titulo: 'Usa un token con permisos de Instagram',
         detalle:
-          'El mismo token de Meta sirve si incluye instagram_basic e instagram_manage_insights. Sin ellos la sincronización devuelve el error 10 (no tienes permiso) aunque el token sea válido para anuncios.',
+          'Pulsa «Conectar Instagram» para autorizar instagram_basic e instagram_manage_insights sin copiar tokens. También puedes pegar un token manual: se conserva como alternativa para apps de Meta que todavía estén en revisión.',
       },
     ],
     fields: [
@@ -163,6 +164,13 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'password',
         secret: true,
         help: 'Si se deja vacío, usa el token de Meta.',
+      },
+      {
+        key: 'INSTAGRAM_TOKEN_EXPIRES_AT',
+        label: 'Caducidad OAuth Instagram',
+        type: 'text',
+        secret: false,
+        hidden: true,
       },
       {
         key: 'IG_USER_ID',
@@ -669,15 +677,14 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       {
         titulo: 'Crea credenciales de tipo OAuth',
         detalle:
-          'Credenciales → Crear → ID de cliente de OAuth, tipo Aplicación web. De ahí salen el Client ID y el ' +
-          'Client Secret que van en los campos de abajo.',
+          'Credenciales → Crear → ID de cliente de OAuth, tipo Aplicación web. Registra como URI de redirección ' +
+          'https://app.scalixsystems.com/api/oauth/google/callback. De ahí salen el Client ID y el Client Secret.',
       },
       {
         titulo: 'El refresh token sale de autorizar una vez',
         detalle:
-          'Es lo que permite seguir publicando sin volver a entrar cada hora. Se obtiene completando el flujo de ' +
-          'autorización de Google con esas credenciales. Es el único paso que no se resuelve copiando de un panel: ' +
-          'si no lo tienes, pide ayuda para este.',
+          'Guarda el Client ID y el Client Secret y pulsa «Conectar con Google». Google vuelve directamente a la ' +
+          'app y el servidor guarda el refresh token cifrado; no hay que copiar códigos ni usar OAuth Playground.',
       },
     ],
     fields: [
@@ -958,7 +965,8 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       {
         titulo: 'Crea el ID de cliente de OAuth',
         detalle:
-          'Credenciales → Crear → ID de cliente de OAuth, tipo Aplicación web. De ahí salen el Client ID y el Client Secret que van abajo.',
+          'Credenciales → Crear → ID de cliente de OAuth, tipo Aplicación web. Registra ' +
+          'https://app.scalixsystems.com/api/oauth/google/callback como URI de redirección. De ahí salen el Client ID y el Client Secret.',
       },
       {
         titulo: 'Da acceso a la propiedad de GA4',

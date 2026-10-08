@@ -13,8 +13,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const session = await requireTenant(tenant)
   if ('error' in session) return session.error
   const provider = new URL(req.url).searchParams.get('provider')
-  if (provider !== 'ga4' && provider !== 'gmail' && provider !== 'calendar') {
-    return NextResponse.json({ error: "El proveedor debe ser 'ga4', 'gmail' o 'calendar'" }, { status: 400 })
+  if (provider !== 'ga4' && provider !== 'gmail' && provider !== 'calendar' && provider !== 'youtube') {
+    return NextResponse.json({ error: 'Proveedor de Google no válido' }, { status: 400 })
   }
   // GA4/Gmail son conexiones del tenant y siguen siendo administrativas. Calendar es una conexión
   // personal: cualquier miembro autenticado puede conectar LA SUYA, nunca la de otro usuario.
@@ -22,12 +22,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     return NextResponse.json({ error: 'Requiere rol de admin o director' }, { status: 403 })
   }
 
-  const creds = await googleCredentials(session.tenantId)
+  const creds = await googleCredentials(session.tenantId, provider)
   if (!creds) {
     return NextResponse.json(
       {
         error:
-          'Faltan el Client ID y el Client Secret de Google. Configúralos en Integraciones → Google (GA4 y Gmail).',
+          provider === 'youtube'
+            ? 'Faltan el Client ID y el Client Secret de YouTube. Guárdalos antes de conectar.'
+            : 'Faltan el Client ID y el Client Secret de Google. Configúralos en Integraciones → Google.',
       },
       { status: 400 }
     )

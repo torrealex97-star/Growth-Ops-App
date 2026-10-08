@@ -72,12 +72,14 @@ test('se avisa de que el secreto lo elige el usuario y debe coincidir en los dos
   assert.match(guia, /EXACTAMENTE|idéntic/i)
 })
 
-test('el panel pinta la guía y resuelve la subcuenta en la dirección', () => {
+test('el panel pinta la guía y resuelve la subcuenta dentro de la ficha del proveedor', () => {
   const page = readFileSync(join(root, 'app/[tenant]/settings/integraciones/page.tsx'), 'utf8')
-  assert.match(page, /<GuiaIntegracion grupo=\{g\} tenant=\{tenant\} \/>/)
-  assert.match(page, /replace\('\{tenant\}', tenant\)/, 'la URL se enseña ya montada, no como plantilla')
+  assert.match(page, /<GuiaIntegracion grupo=\{g\} \/>/)
+  assert.match(page, /<ProviderWebhooks webhooks=\{webhooksEntrantes\} tenant=\{tenant\} groupId=\{g\.id\} \/>/)
+  const component = readFileSync(join(root, 'components/integrations/WebhooksEntrantesPanel.tsx'), 'utf8')
+  assert.match(component, /replace\('\{tenant\}', tenant\)/, 'la URL se enseña ya montada, no como plantilla')
   // Sin portapapeles no se puede dejar a nadie bloqueado: el texto tiene que seguir a la vista.
-  assert.match(page, /selecciónala y cópiala a mano/)
+  assert.match(component, /selecciónala y cópiala a mano/)
 })
 
 // ── COBERTURA: NINGUNA INTEGRACIÓN NUEVA SIN GUÍA ────────────────────────────────────────────

@@ -3006,3 +3006,28 @@ limitada a `service_role`/`postgres`.
 «No comisiona» conserva la atribución histórica (`affiliate_id`) y guarda porcentaje 0. La regresión
 permanente impide volver a borrar esa atribución. El diálogo recupera el estado tras una caída de red
 y permite reintentar. No se ejecutó ningún ajuste financiero real durante la validación.
+
+# Centro de integraciones OAuth + webhooks por proveedor — IMPLEMENTADO, pendiente de PR, 8-oct-2026 (Codex)
+
+- **Rama única:** `codex/oauth-integrations-hub`. Implementa OAuth nativo y firmado para YouTube,
+  Meta Ads e Instagram; separa sus permisos/tokens para no ampliar ni romper una autorización con
+  otra; añade entrada con Google mediante Supabase Auth; y coloca el estado de cada webhook dentro
+  de la ficha de su proveedor.
+- **Invariante:** no se publica ningún botón OAuth que no tenga callback, state antifalsificación,
+  intercambio de token y persistencia cifrada funcionales. Los tokens/API keys permanecen como
+  alternativa solo cuando el proveedor los soporta de verdad.
+- **UX:** desaparece el panel global «Webhooks entrantes»; URL, firma, último evento y diagnóstico
+  viven dentro de Calendly, Stripe, GHL, Hotmart, Whop o la aplicación correspondiente.
+- **Compatibilidad:** Meta/Instagram y YouTube conservan el token manual como alternativa. Google
+  Analytics y Gmail comparten el cliente Google; Calendar sigue siendo OAuth personal por miembro.
+  Stripe se mantiene con clave restringida porque la app lee la cuenta propia y no actúa como una
+  plataforma Connect. Los proveedores solo API-key no reciben botones OAuth ficticios.
+- **Configuración externa pendiente:** registrar los callbacks
+  `https://app.scalixsystems.com/api/oauth/google/callback` y
+  `https://app.scalixsystems.com/api/oauth/meta/callback`, habilitar Google en Supabase Auth y
+  aprobar los permisos de Meta. Calendly y GHL soportan OAuth, pero requieren crear sus respectivas
+  apps de desarrollador y cargar Client ID/Secret; hasta que existan esos datos se conserva el modo
+  token, que ya funciona. Esto es `NEEDS_VALIDATION`, no una conexión probada en producción.
+- **Validación local:** format y lint PASS (advertencias heredadas), typecheck PASS, focales OAuth /
+  webhooks 64/64, unitarias 1.488/1.491 (las tres restantes necesitan DNS a Supabase producción),
+  métricas 788/788, build de producción PASS y `npm audit --omit=dev` 0 tras subir Next 15.5.27.

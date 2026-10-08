@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Radio, Copy, CheckCircle2, XCircle, KeyRound, ShieldAlert, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
@@ -129,41 +128,39 @@ function FilaWebhook({ w, tenant }: { w: WebhookEntranteEstado; tenant: string }
   )
 }
 
-/** Bloque superior del panel de Integraciones: los 5 webhooks entrantes de la subcuenta. */
-export function WebhooksEntrantesPanel({ webhooks, tenant }: { webhooks: WebhookEntranteEstado[]; tenant: string }) {
-  const [abierto, setAbierto] = useState(true)
-
-  if (!webhooks.length) return null
-  const conAlgunEvento = webhooks.some((w) => w.ultimoEvento)
+/** Webhooks de una aplicación, dentro de su propia ficha: conexión y tiempo real en un solo sitio. */
+export function ProviderWebhooks({
+  webhooks,
+  tenant,
+  groupId,
+}: {
+  webhooks: WebhookEntranteEstado[]
+  tenant: string
+  groupId: string
+}) {
+  const propios = webhooks.filter((webhook) => webhook.groupId === groupId)
+  if (!propios.length) return null
 
   return (
-    <section className="border-border space-y-3 rounded-xl border bg-card p-5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Radio className="h-4 w-4" aria-hidden />
-            Webhooks entrantes
-          </h2>
-          <p className="text-muted-foreground mt-1 text-xs">
-            URLs que llaman los proveedores para avisar de eventos en tiempo real. Cada una lleva el identificador de
-            esta subcuenta y su propio secreto. «—» = todavía no ha llegado ninguno.
-          </p>
-        </div>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setAbierto((v) => !v)}>
-          {abierto ? 'Plegar' : 'Desplegar'}
-        </Button>
+    <section className="border-border my-5 space-y-3 border-y py-4">
+      <div>
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <Radio className="h-4 w-4" aria-hidden />
+          Eventos en tiempo real
+        </h2>
+        <p className="text-muted-foreground mt-1 text-xs">
+          Configura estas direcciones en el proveedor. El estado y la última entrega proceden de evidencia real.
+        </p>
       </div>
-      {abierto ? (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {webhooks.map((w) => (
-            <FilaWebhook key={w.id} w={w} tenant={tenant} />
-          ))}
-        </div>
-      ) : null}
-      {!conAlgunEvento ? (
+      <div className="space-y-3">
+        {propios.map((webhook) => (
+          <FilaWebhook key={webhook.id} w={webhook} tenant={tenant} />
+        ))}
+      </div>
+      {!propios.some((webhook) => webhook.ultimoEvento) ? (
         <p className="text-muted-foreground text-xs">
-          Ningún webhook ha recibido todavía eventos con constancia. Los pulls programados (cron) y el botón «Cargar
-          histórico» cubren los datos aunque el webhook no entre — el webhook aporta el tiempo real.
+          Todavía no hay entregas registradas. Las cargas históricas pueden seguir aportando datos; el webhook añade las
+          actualizaciones en tiempo real.
         </p>
       ) : null}
     </section>

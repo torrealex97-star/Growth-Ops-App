@@ -6,7 +6,7 @@ import { getTenantConfigWithFallback } from '@/lib/config'
  * en el correo del cliente, y pedir un permiso que no se usa es una responsabilidad gratuita — si
  * la app se ve comprometida, el alcance del daño es lo que se concedió, no lo que se usaba.
  */
-export type GoogleProvider = 'ga4' | 'gmail' | 'calendar'
+export type GoogleProvider = 'ga4' | 'gmail' | 'calendar' | 'youtube'
 
 export const SCOPES: Record<GoogleProvider, string[]> = {
   ga4: ['https://www.googleapis.com/auth/analytics.readonly'],
@@ -20,6 +20,14 @@ export const SCOPES: Record<GoogleProvider, string[]> = {
     'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
     'https://www.googleapis.com/auth/calendar.events.readonly',
   ],
+  // YouTube necesita upload para publicar Shorts y readonly para sincronizar sus métricas. Se pide
+  // en un consentimiento separado: conectar Calendar no debe conceder acceso al canal.
+  youtube: [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/youtube.upload',
+    'https://www.googleapis.com/auth/youtube.readonly',
+  ],
 }
 
 /**
@@ -30,7 +38,7 @@ export const SCOPES: Record<GoogleProvider, string[]> = {
  * un callback por subcuenta obligaría a editar la consola cada vez que se crea una. La subcuenta
  * viaja firmada en `state` (ver lib/google/oauth-state.ts).
  */
-function redirectUri(): string {
+export function googleRedirectUri(): string {
   const base = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '')
   return `${base}/api/oauth/google/callback`
 }
@@ -38,10 +46,15 @@ function redirectUri(): string {
 export type GoogleCredentials = { clientId: string; clientSecret: string }
 
 /** Credenciales del proyecto de Google Cloud, guardadas cifradas por subcuenta. */
-export async function googleCredentials(tenantId: string): Promise<GoogleCredentials | null> {
+export async function googleCredentials(
+  tenantId: string,
+  provider: GoogleProvider = 'ga4'
+): Promise<GoogleCredentials | null> {
   const cfg = await getTenantConfigWithFallback(tenantId, true)
-  const clientId = cfg.GOOGLE_CLIENT_ID
-  const clientSecret = cfg.GOOGLE_CLIENT_SECRET
+  // YouTube mantiene compatibilidad con sus credenciales históricas. El resto usa el cliente
+  // común de Google; en ambos casos la persona solo pulsa OAuth y el secreto nunca pasa al browser.
+  const clientId = provider === 'youtube' ? cfg.YOUTUBE_CLIENT_ID : cfg.GOOGLE_CLIENT_ID
+  const clientSecret = provider === 'youtube' ? cfg.YOUTUBE_CLIENT_SECRET : cfg.GOOGLE_CLIENT_SECRET
   if (!clientId || !clientSecret) return null
   return { clientId, clientSecret }
 }
@@ -49,7 +62,7 @@ export async function googleCredentials(tenantId: string): Promise<GoogleCredent
 export function authorizationUrl(opts: { clientId: string; scopes: string[]; state: string }): string {
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
   url.searchParams.set('client_id', opts.clientId)
-  url.searchParams.set('redirect_uri', redirectUri())
+  url.searchParams.set('redirect_uri', googleRedirectUri())
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('scope', opts.scopes.join(' '))
   // offline + consent: sin esto Google NO devuelve refresh_token en las autorizaciones posteriores a
@@ -87,7 +100,7 @@ export async function exchangeCode(
       code,
       client_id: creds.clientId,
       client_secret: creds.clientSecret,
-      redirect_uri: redirectUriOverride || redirectUri(),
+      redirect_uri: redirectUriOverride || googleRedirectUri(),
       grant_type: 'authorization_code',
     }),
     signal: AbortSignal.timeout(15_000),

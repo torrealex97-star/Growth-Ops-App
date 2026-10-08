@@ -55,13 +55,24 @@ test('los ámbitos de Google no conceden escritura', () => {
   const lib = read('lib/google/oauth.ts')
   // El SCOPES de lib/google es el del cliente de GA4/Gmail: YouTube usa OTRO cliente OAuth (el de
   // Integraciones) y otros ámbitos, pedidos por la UI (tests/youtube-oauth.test.mjs).
-  const scopes = lib.slice(lib.indexOf('export const SCOPES'), lib.indexOf('function redirectUri'))
+  const scopes = lib.slice(lib.indexOf('export const SCOPES'), lib.indexOf('youtube:'))
   const encontrados = [...scopes.matchAll(/auth\/([a-z0-9.]+)/g)].map((m) => m[1])
   assert.ok(encontrados.length >= 3, 'no se han encontrado los ámbitos')
   for (const s of encontrados) assert.match(s, /readonly|metadata|userinfo\.email/)
   // Nada de escritura, envío ni borrado.
   assert.doesNotMatch(scopes, /gmail\.send|gmail\.modify|analytics\.edit|drive/)
   assert.doesNotMatch(scopes, /auth\/calendar(?:['"]|,)/)
+})
+
+test('el login con Google conserva el aislamiento por subcuenta después del callback', () => {
+  const login = read('app/[tenant]/login/page.tsx')
+  const callback = read('app/api/[tenant]/evergreen/auth/callback/route.ts')
+  assert.match(login, /signInWithOAuth/)
+  assert.match(login, /provider: 'google'/)
+  assert.match(login, /api\/\$\{tenant\}\/evergreen\/auth\/callback/)
+  assert.match(callback, /from\('tenants'\).*eq\('slug', tenant\).*maybeSingle\(\)/s)
+  assert.match(callback, /signOut\(\)/)
+  assert.match(callback, /error=no_tenant_access/)
 })
 
 test('el flujo pide offline + consent para recibir refresh token', () => {

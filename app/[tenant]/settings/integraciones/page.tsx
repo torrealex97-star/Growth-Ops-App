@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,7 +45,7 @@ import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { CATEGORY_LABELS, type IntegrationCategory } from '@/lib/integrations-catalog'
-import { WebhooksEntrantesPanel } from '@/components/integrations/WebhooksEntrantesPanel'
+import { ProviderWebhooks } from '@/components/integrations/WebhooksEntrantesPanel'
 import type { WebhookEntranteEstado } from '@/lib/webhooks/entrantes'
 import { formatNumber } from '@/lib/utils'
 
@@ -417,44 +418,12 @@ function AdvancedField({
  * Por eso la dirección se pinta ya montada con la subcuenta y con botón de copiar, y cada paso dice
  * de dónde sale el dato. Solo aparece en las integraciones que declaran `pasos` o `webhookPath`.
  */
-function GuiaIntegracion({ grupo, tenant }: { grupo: Group; tenant: string }) {
-  const url = grupo.webhookPath
-    ? `${typeof window === 'undefined' ? '' : window.location.origin}${grupo.webhookPath.replace('{tenant}', tenant)}`
-    : null
-  if (!grupo.pasos?.length && !url) return null
+function GuiaIntegracion({ grupo }: { grupo: Group }) {
+  if (!grupo.pasos?.length) return null
 
   return (
     <section className="border-border bg-muted/20 my-5 space-y-4 rounded-lg border p-4">
       <h3 className="text-sm font-semibold">Cómo configurarlo</h3>
-
-      {url ? (
-        <div className="space-y-1.5">
-          <p className="text-muted-foreground text-xs">
-            Dirección del webhook de esta subcuenta. Cópiala tal cual: lleva dentro el identificador de la subcuenta y
-            no vale la de otra.
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="bg-background/60 border-border flex-1 overflow-x-auto rounded border px-2 py-1.5 text-xs">
-              {url}
-            </code>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard
-                  ?.writeText(url)
-                  .then(() => toast.success('Dirección copiada'))
-                  // Sin portapapeles (navegador antiguo o permiso denegado) se puede seleccionar a mano:
-                  // el texto está a la vista, así que el fallo no deja a nadie bloqueado.
-                  .catch(() => toast.error('No se pudo copiar: selecciónala y cópiala a mano'))
-              }}
-            >
-              Copiar
-            </Button>
-          </div>
-        </div>
-      ) : null}
 
       {grupo.pasos?.length ? (
         <ol className="space-y-3">
@@ -476,6 +445,7 @@ function GuiaIntegracion({ grupo, tenant }: { grupo: Group; tenant: string }) {
 }
 
 export default function IntegracionesPage() {
+  const router = useRouter()
   const tenant = useTenant()
   const [groups, setGroups] = useState<Group[]>([])
   const [state, setState] = useState<Record<string, StateEntry>>({})
@@ -587,9 +557,8 @@ export default function IntegracionesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
-  // Vuelta del flujo OAuth de Google (provider=ga4/gmail). El callback de la app redirige a ESTA
-  // pantalla con el resultado en la URL; el token se guarda en el callback y nunca pasa por el
-  // navegador. YouTube usa otro camino (redirect del playground + pegar código): ver abajo.
+  // Vuelta de los flujos OAuth de Google. El callback redirige a ESTA pantalla; los tokens se
+  // guardan cifrados en el servidor y nunca pasan por el navegador.
   useEffect(() => {
     if (typeof window === 'undefined') return
     const sp = new URLSearchParams(window.location.search)
@@ -611,6 +580,27 @@ export default function IntegracionesPage() {
     window.history.replaceState(null, '', window.location.pathname)
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams(window.location.search)
+    const result = sp.get('meta_oauth')
+    if (!result) return
+    const service = sp.get('servicio') === 'instagram' ? 'Instagram' : 'Meta Ads'
+    if (result === 'conectada') toast.success(`${service} conectado con OAuth`)
+    else if (result === 'requiere_cuenta')
+      toast.warning('OAuth conectado. Indica el IG User ID porque Meta devolvió cero o varias cuentas profesionales.')
+    else if (result === 'cancelada') toast.info('Autorización cancelada')
+    else {
+      const reasons: Record<string, string> = {
+        sin_credenciales: 'Faltan la App ID y el App Secret de Meta.',
+        sin_token: 'Meta no devolvió un token válido.',
+        no_se_pudo_guardar: 'No se pudo guardar la conexión cifrada.',
+      }
+      toast.error(reasons[sp.get('motivo') || ''] || 'No se pudo completar la autorización con Meta')
+    }
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
+
   // Al abrir una integración se comprueba contra su API si no hay comprobación fresca. Es UNA llamada
   // (la de la que se abre), no diecisiete al cargar la pantalla, y es lo que hace que el estado sea
   // información de ahora y no de la última vez que alguien pulsó un botón.
@@ -626,7 +616,7 @@ export default function IntegracionesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
-  async function saveGroup(g: Group) {
+  async function saveGroup(g: Group, verifyAfterSave = true) {
     setSavingId(g.id)
     const updates: Record<string, string> = {}
     for (const f of g.fields) if (drafts[f.key] !== undefined) updates[f.key] = drafts[f.key]
@@ -639,7 +629,7 @@ export default function IntegracionesPage() {
     setSavingId(null)
     if (!r.ok) {
       toast.error(j.error || 'Error al guardar')
-      return
+      return false
     }
     toast.success(`${g.title}: guardado`)
     // limpiar drafts de secretos (para que vuelvan a mostrarse enmascarados)
@@ -651,12 +641,13 @@ export default function IntegracionesPage() {
     await load()
     // Se comprueba al momento, y solo si la API responde bien se ofrece traer el pasado: ofrecer una
     // carga de histórico con una credencial que no funciona es mandar al usuario directo a un error.
-    if (g.test) {
+    if (g.test && verifyAfterSave) {
       const probe = await testGroup(g)
       if (probe?.ok && historyFor(g.id)) setAskHistory(g.id)
     } else if (historyFor(g.id)) {
       setAskHistory(g.id)
     }
+    return true
   }
 
   async function testGroup(g: Group) {
@@ -1120,11 +1111,6 @@ export default function IntegracionesPage() {
         </div>
       )}
 
-      {/* La mitad receptora de las integraciones: URLs exactas por subcuenta, estado del secret
-          y último evento recibido con su evidencia. Antes de este bloque, dar de alta un webhook
-          exigía cazar la URL en una guía y descubrir a posteriori que nada entraba. */}
-      <WebhooksEntrantesPanel webhooks={webhooksEntrantes} tenant={tenant} />
-
       {CATEGORY_ORDER.filter((cat) => groups.some((g) => g.category === cat)).map((cat) => (
         <div key={cat} className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1224,7 +1210,9 @@ export default function IntegracionesPage() {
                           <SheetDescription>{g.description}</SheetDescription>
                         </SheetHeader>
 
-                        <GuiaIntegracion grupo={g} tenant={tenant} />
+                        <GuiaIntegracion grupo={g} />
+
+                        <ProviderWebhooks webhooks={webhooksEntrantes} tenant={tenant} groupId={g.id} />
 
                         {h ? (
                           <section
@@ -2155,71 +2143,92 @@ export default function IntegracionesPage() {
                           {g.id === 'youtube' && (
                             <div className="w-full space-y-2 border-t border-border pt-3">
                               <p className="text-xs text-muted-foreground">
-                                El refresh token de YouTube no se pega a mano: se autoriza y Google lo genera. Solo el
-                                redirect del playground está registrado en el cliente OAuth de esta integración, así que
-                                el código vuelve ahí.
+                                Autoriza el canal directamente con Google. El refresh token se guarda cifrado en el
+                                servidor y nunca pasa por el portapapeles.
                               </p>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    // Asegurar que client+secret están guardados antes de abrir Google.
-                                    await saveGroup(g)
-                                    const u = new URL('https://accounts.google.com/o/oauth2/v2/auth')
-                                    u.searchParams.set('client_id', drafts.YOUTUBE_CLIENT_ID || '')
-                                    u.searchParams.set('redirect_uri', 'https://developers.google.com/oauthplayground')
-                                    u.searchParams.set('response_type', 'code')
-                                    u.searchParams.set(
-                                      'scope',
-                                      'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly'
-                                    )
-                                    u.searchParams.set('access_type', 'offline')
-                                    u.searchParams.set('prompt', 'consent')
-                                    window.open(u.toString(), '_blank', 'noopener')
-                                  }}
-                                  disabled={
-                                    savingId === g.id || !drafts.YOUTUBE_CLIENT_ID || !drafts.YOUTUBE_CLIENT_SECRET // sin client+secret Google no puede emparejar el token
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={
+                                  savingId === g.id ||
+                                  !(drafts.YOUTUBE_CLIENT_ID || state.YOUTUBE_CLIENT_ID?.source !== 'none') ||
+                                  !(drafts.YOUTUBE_CLIENT_SECRET || state.YOUTUBE_CLIENT_SECRET?.source !== 'none')
+                                }
+                                onClick={async () => {
+                                  const saved = await saveGroup(g, false)
+                                  if (saved) {
+                                    router.push(`/api/${tenant}/evergreen/oauth/google/start?provider=youtube`)
                                   }
-                                >
-                                  <ExternalLink className="mr-2 h-4 w-4" /> Autorizar con Google
-                                </Button>
-                                <Input
-                                  className="min-w-0 flex-1"
-                                  placeholder="Código que devuelve Google (o su URL completa)"
-                                  value={drafts.YOUTUBE_OAUTH_CODE || ''}
-                                  onChange={(e) => setDrafts((p) => ({ ...p, YOUTUBE_OAUTH_CODE: e.target.value }))}
-                                />
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({
-                                        action: 'youtube-exchange',
-                                        code: drafts.YOUTUBE_OAUTH_CODE || '',
-                                      }),
-                                    })
-                                    const j = await r.json()
-                                    if (!r.ok) {
-                                      toast.error(j.error || 'No se pudo completar la autorización')
-                                      return
+                                }}
+                              >
+                                <ExternalLink className="mr-2 h-4 w-4" /> Conectar con Google
+                              </Button>
+                              {!(drafts.YOUTUBE_CLIENT_ID || state.YOUTUBE_CLIENT_ID?.source !== 'none') ||
+                              !(drafts.YOUTUBE_CLIENT_SECRET || state.YOUTUBE_CLIENT_SECRET?.source !== 'none') ? (
+                                <p className="text-xs text-amber-400">
+                                  Guarda primero el Client ID y el Client Secret.
+                                </p>
+                              ) : null}
+                            </div>
+                          )}
+                          {g.id === 'google' && (
+                            <div className="w-full space-y-2 border-t border-border pt-3">
+                              <p className="text-xs text-muted-foreground">
+                                Cada permiso se autoriza por separado para no dar acceso a servicios que no usas.
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {(['ga4', 'gmail'] as const).map((provider) => (
+                                  <Button
+                                    key={provider}
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={
+                                      savingId === g.id ||
+                                      !(drafts.GOOGLE_CLIENT_ID || state.GOOGLE_CLIENT_ID?.source !== 'none') ||
+                                      !(drafts.GOOGLE_CLIENT_SECRET || state.GOOGLE_CLIENT_SECRET?.source !== 'none')
                                     }
-                                    toast.success('YouTube conectado: refresh token guardado')
-                                    setDrafts((p) => {
-                                      const n = { ...p }
-                                      delete n.YOUTUBE_OAUTH_CODE
-                                      return n
-                                    })
-                                    void load()
-                                  }}
-                                  disabled={!drafts.YOUTUBE_OAUTH_CODE || savingId === g.id}
-                                >
-                                  <KeyRound className="mr-2 h-4 w-4" /> Completar conexión
-                                </Button>
+                                    onClick={async () => {
+                                      const saved = await saveGroup(g, false)
+                                      if (saved) {
+                                        router.push(`/api/${tenant}/evergreen/oauth/google/start?provider=${provider}`)
+                                      }
+                                    }}
+                                  >
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    Conectar {provider === 'ga4' ? 'Google Analytics' : 'Gmail'}
+                                  </Button>
+                                ))}
                               </div>
+                            </div>
+                          )}
+                          {(g.id === 'meta' || g.id === 'instagram') && (
+                            <div className="w-full space-y-2 border-t border-border pt-3">
+                              <p className="text-xs text-muted-foreground">
+                                Autoriza solo los permisos de {g.id === 'meta' ? 'anuncios' : 'Instagram profesional'}.
+                                El token manual sigue disponible como alternativa.
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={
+                                  savingId === g.id ||
+                                  !(drafts.META_APP_ID || state.META_APP_ID?.source !== 'none') ||
+                                  !(drafts.META_APP_SECRET || state.META_APP_SECRET?.source !== 'none')
+                                }
+                                onClick={async () => {
+                                  const saved = await saveGroup(g, false)
+                                  if (saved) router.push(`/api/${tenant}/evergreen/oauth/meta/start?surface=${g.id}`)
+                                }}
+                              >
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Conectar {g.id === 'meta' ? 'Meta Ads' : 'Instagram'}
+                              </Button>
+                              {!(drafts.META_APP_ID || state.META_APP_ID?.source !== 'none') ||
+                              !(drafts.META_APP_SECRET || state.META_APP_SECRET?.source !== 'none') ? (
+                                <p className="text-xs text-amber-400">
+                                  Configura primero la App ID y el App Secret en la ficha de Meta Ads.
+                                </p>
+                              ) : null}
                             </div>
                           )}
                           <Button size="sm" onClick={() => saveGroup(g)} disabled={savingId === g.id}>
