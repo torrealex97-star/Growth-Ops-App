@@ -24,7 +24,9 @@ test('el callback verifica la firma del state antes de cualquier otra cosa', () 
   assert.ok(cuerpo.indexOf('exchangeCode(') > posVerify, 'se intercambia el código antes de validar el state')
   assert.ok(cuerpo.indexOf("from('tenants')") > posVerify, 'se consulta la subcuenta antes de validar el state')
   // La subcuenta sale del state verificado, nunca de un parámetro de la URL.
-  assert.match(cuerpo, /const \{ tenant, provider \} = state\.payload/)
+  assert.match(cuerpo, /const \{ tenant, provider, userId \} = state\.payload/)
+  assert.match(cuerpo, /await requireTenant\(tenant\)/)
+  assert.match(cuerpo, /session\.userId !== userId/)
   assert.doesNotMatch(cuerpo, /searchParams\.get\('tenant'\)/)
 })
 
@@ -49,18 +51,17 @@ test('se guardan los ámbitos concedidos, no los pedidos', () => {
   assert.match(code, /faltan\.length > 0 \? 'error' : 'conectada'/)
 })
 
-test('los ámbitos de GA4 y Gmail son todos de solo lectura', () => {
+test('los ámbitos de Google no conceden escritura', () => {
   const lib = read('lib/google/oauth.ts')
   // El SCOPES de lib/google es el del cliente de GA4/Gmail: YouTube usa OTRO cliente OAuth (el de
   // Integraciones) y otros ámbitos, pedidos por la UI (tests/youtube-oauth.test.mjs).
   const scopes = lib.slice(lib.indexOf('export const SCOPES'), lib.indexOf('function redirectUri'))
   const encontrados = [...scopes.matchAll(/auth\/([a-z0-9.]+)/g)].map((m) => m[1])
   assert.ok(encontrados.length >= 3, 'no se han encontrado los ámbitos')
-  for (const s of encontrados) {
-    assert.match(s, /readonly|metadata/, `el ámbito ${s} no es de solo lectura`)
-  }
+  for (const s of encontrados) assert.match(s, /readonly|metadata|userinfo\.email/)
   // Nada de escritura, envío ni borrado.
   assert.doesNotMatch(scopes, /gmail\.send|gmail\.modify|analytics\.edit|drive/)
+  assert.doesNotMatch(scopes, /auth\/calendar(?:['"]|,)/)
 })
 
 test('el flujo pide offline + consent para recibir refresh token', () => {
@@ -70,13 +71,33 @@ test('el flujo pide offline + consent para recibir refresh token', () => {
   assert.match(lib, /prompt', 'consent'/)
 })
 
-test('el inicio del flujo exige sesión de admin de la subcuenta de la URL', () => {
+test('el inicio del flujo liga el state a la sesión; Calendar permite al miembro y GA4/Gmail exigen liderazgo', () => {
   const code = read(START)
   assert.match(code, /await requireTenant\(tenant\)/)
-  assert.match(code, /session\.role !== 'admin'/)
-  assert.match(code, /signState\(\{ tenant, provider \}\)/)
+  assert.match(code, /provider !== 'calendar'.*session\.role !== 'admin'/s)
+  assert.match(code, /signState\(\{ tenant, provider, userId: session\.userId \}\)/)
   // Sin CONFIG_ENC_KEY no se puede firmar: antes fallar que seguir sin firma.
   assert.match(code, /catch \(e\)/)
+})
+
+test('Calendar usa scopes mínimos de lectura y se guarda por tenant + usuario', () => {
+  const oauth = read('lib/google/oauth.ts')
+  const callback = read(CALLBACK)
+  assert.match(oauth, /calendar\.calendarlist\.readonly/)
+  assert.match(oauth, /calendar\.events\.readonly/)
+  assert.doesNotMatch(oauth, /auth\/calendar['"]/)
+  assert.match(callback, /owner_user_id: userId/)
+  assert.match(callback, /tenant_id,provider,owner_user_id/)
+})
+
+test('la migración Calendar conserva appointments como canónica y protege propiedad/RLS', () => {
+  const sql = read('supabase/migrations/20261008122259_google_calendar_per_closer_read_only.sql')
+  assert.match(sql, /provider IN \('ga4', 'gmail', 'calendar'\)/)
+  assert.match(sql, /google_oauth_calendar_requires_owner/)
+  assert.match(sql, /UNIQUE \(tenant_id, connection_id, external_calendar_id\)/)
+  assert.match(sql, /WHERE role = 'primary' AND is_enabled/)
+  assert.match(sql, /owner_user_id = auth\.uid\(\)/)
+  assert.doesNotMatch(sql, /CREATE TABLE public\.appointments/)
 })
 
 test('el callback está declarado como público en el middleware, con motivo', () => {

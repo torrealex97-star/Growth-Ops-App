@@ -6,9 +6,20 @@ import { getTenantConfigWithFallback } from '@/lib/config'
  * en el correo del cliente, y pedir un permiso que no se usa es una responsabilidad gratuita — si
  * la app se ve comprometida, el alcance del daño es lo que se concedió, no lo que se usaba.
  */
-export const SCOPES: Record<'ga4' | 'gmail', string[]> = {
+export type GoogleProvider = 'ga4' | 'gmail' | 'calendar'
+
+export const SCOPES: Record<GoogleProvider, string[]> = {
   ga4: ['https://www.googleapis.com/auth/analytics.readonly'],
   gmail: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.metadata'],
+  // Calendar empieza deliberadamente en solo lectura. calendarlist.readonly permite que el closer
+  // elija su calendario principal y los de conflicto; events.readonly permite conciliarlos. El
+  // write-back exigirá una autorización incremental separada cuando exista esa función.
+  calendar: [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+    'https://www.googleapis.com/auth/calendar.events.readonly',
+  ],
 }
 
 /**

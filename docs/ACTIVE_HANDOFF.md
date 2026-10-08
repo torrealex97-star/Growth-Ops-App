@@ -1,3 +1,15 @@
+# Google Calendar por closer — FASE 1 EN CURSO, 8-oct-2026 (Codex)
+
+- **Rama única:** `codex/google-calendar-closer-phase1`. No abrir otra rama que toque OAuth Google,
+  CRM › Agendas o las tablas `google_oauth_*`/`google_connected_calendars` hasta cerrar esta fase.
+- **Auditoría:** `docs/GOOGLE_CALENDAR_AUDIT.md`. `appointments` sigue siendo la agenda canónica;
+  Calendar empieza en solo lectura y ningún evento externo afecta métricas en esta fase.
+- **Implementado:** conexión por `(tenant,user)`, state OAuth ligado al usuario, scopes mínimos,
+  selección principal/conflicto/read-only, descubrimiento paginado, reconexión y desconexión desde
+  Agendas. Migración preparada, todavía NO aplicada a producción.
+- **Pendiente de este bloque:** quality gate completo, review final, PR y dry-run de migración. La
+  Fase 2 (eventos + syncToken) empieza solo después de cerrar esta PR.
+
 ## Importación segura de plantillas de contrato — CERRADO EN PR #402, 7-oct-2026 (Codex)
 
 - **Fusionado y desplegado:** PR #402, squash `c31af0a4`; CI Quality, Build, Smoke E2E, Release gate,

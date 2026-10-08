@@ -5,20 +5,22 @@ import test from 'node:test'
 // La clave se deriva de CONFIG_ENC_KEY, así que hay que fijarla antes de importar el módulo.
 process.env.CONFIG_ENC_KEY = 'clave-de-prueba-solo-para-tests'
 const { signState, verifyState, STATE_TTL_MS } = await import('../../lib/google/oauth-state.ts')
+const USER_ID = '11111111-1111-4111-8111-111111111111'
 
 test('un state firmado se verifica y conserva la subcuenta y el proveedor', () => {
-  const state = signState({ tenant: 'evergreen', provider: 'ga4' })
+  const state = signState({ tenant: 'evergreen', provider: 'ga4', userId: USER_ID })
   const r = verifyState(state)
   assert.equal(r.ok, true)
   assert.equal(r.payload.tenant, 'evergreen')
   assert.equal(r.payload.provider, 'ga4')
+  assert.equal(r.payload.userId, USER_ID)
 })
 
 // El ataque que esto impide: el callback no lleva la subcuenta en la ruta, así que si el state no
 // estuviera firmado, cualquiera podría reclamar ser otra subcuenta y guardar SU token de Google
 // como la conexión de esa subcuenta.
 test('un state manipulado para cambiar de subcuenta se rechaza', () => {
-  const state = signState({ tenant: 'evergreen', provider: 'ga4' })
+  const state = signState({ tenant: 'evergreen', provider: 'ga4', userId: USER_ID })
   const [body] = state.split('.')
   const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
   payload.tenant = 'women-digital-closer'
@@ -41,14 +43,14 @@ test('un state inventado sin firma válida se rechaza', () => {
 
 test('un mac de longitud distinta da "firma", no una excepción', () => {
   // crypto.timingSafeEqual lanza si las longitudes no coinciden: hay que comprobarlo antes.
-  const state = signState({ tenant: 'evergreen', provider: 'ga4' })
+  const state = signState({ tenant: 'evergreen', provider: 'ga4', userId: USER_ID })
   const r = verifyState(`${state.split('.')[0]}.${Buffer.from('corto').toString('base64url')}`)
   assert.equal(r.ok, false)
   assert.equal(r.reason, 'firma')
 })
 
 test('un state caducado se rechaza aunque la firma sea buena', () => {
-  const state = signState({ tenant: 'evergreen', provider: 'ga4' })
+  const state = signState({ tenant: 'evergreen', provider: 'ga4', userId: USER_ID })
   const justo = verifyState(state, Date.now() + STATE_TTL_MS - 1000)
   assert.equal(justo.ok, true, 'dentro de la ventana debe valer')
   const pasado = verifyState(state, Date.now() + STATE_TTL_MS + 1000)
@@ -58,14 +60,14 @@ test('un state caducado se rechaza aunque la firma sea buena', () => {
 
 test('un state emitido en el futuro se rechaza', () => {
   // Indica un reloj manipulado o un state fabricado, no un flujo legítimo.
-  const state = signState({ tenant: 'evergreen', provider: 'ga4' })
+  const state = signState({ tenant: 'evergreen', provider: 'ga4', userId: USER_ID })
   const r = verifyState(state, Date.now() - 10 * 60 * 1000)
   assert.equal(r.ok, false)
   assert.equal(r.reason, 'caducado')
 })
 
 test('un proveedor no reconocido se rechaza: un flujo de GA4 no puede guardarse como Gmail', () => {
-  const state = signState({ tenant: 'evergreen', provider: 'ga4' })
+  const state = signState({ tenant: 'evergreen', provider: 'ga4', userId: USER_ID })
   const [body, mac] = state.split('.')
   const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
   payload.provider = 'drive'
@@ -80,7 +82,7 @@ test('un proveedor no reconocido se rechaza: un flujo de GA4 no puede guardarse 
 })
 
 test('dos states del mismo flujo no son iguales (nonce)', () => {
-  const a = signState({ tenant: 'evergreen', provider: 'ga4' })
-  const b = signState({ tenant: 'evergreen', provider: 'ga4' })
+  const a = signState({ tenant: 'evergreen', provider: 'ga4', userId: USER_ID })
+  const b = signState({ tenant: 'evergreen', provider: 'ga4', userId: USER_ID })
   assert.notEqual(a, b)
 })

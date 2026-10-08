@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { encryptSecret } from '@/lib/config'
 import { exchangeCode, fetchGoogleEmail, googleCredentials, SCOPES } from '@/lib/google/oauth'
 import { verifyState } from '@/lib/google/oauth-state'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -23,8 +24,16 @@ function serviceClient() {
 
 // Se devuelve al usuario a la pantalla de Integraciones de SU subcuenta con el resultado en la URL,
 // en vez de dejarle ante un JSON: viene de una pantalla y tiene que volver a una pantalla.
-function backToIntegrations(tenant: string, params: Record<string, string>, req: NextRequest): NextResponse {
-  const url = new URL(`/${tenant}/settings/integraciones`, req.nextUrl.origin)
+function backToGoogleSurface(
+  tenant: string,
+  provider: 'ga4' | 'gmail' | 'calendar',
+  params: Record<string, string>,
+  req: NextRequest
+): NextResponse {
+  // Los closers no tienen acceso al panel administrativo de Integraciones. Calendar vuelve a
+  // Agendas, donde vive su configuración personal; GA4/Gmail mantienen su destino histórico.
+  const pathname = provider === 'calendar' ? `/${tenant}/crm/agendas` : `/${tenant}/settings/integraciones`
+  const url = new URL(pathname, req.nextUrl.origin)
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   return NextResponse.redirect(url)
 }
@@ -41,14 +50,26 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { tenant, provider } = state.payload
+    const { tenant, provider, userId } = state.payload
+
+    // El callback conserva las cookies de la sesión que inició OAuth. La firma impide manipular el
+    // state y esta comprobación adicional impide que un state capturado dentro de sus 10 minutos se
+    // use para conectar una cuenta como si perteneciera a otro closer.
+    const session = await requireTenant(tenant)
+    if ('error' in session) return session.error
+    if (session.userId !== userId) {
+      return NextResponse.json({ error: 'La autorización no pertenece a esta sesión.' }, { status: 403 })
+    }
+    if (provider !== 'calendar' && !session.isSuperAdmin && session.role !== 'admin' && session.role !== 'director') {
+      return NextResponse.json({ error: 'Requiere rol de admin o director' }, { status: 403 })
+    }
 
     // Google devuelve `error` si el usuario cancela o deniega. No es un fallo del sistema.
     const denied = sp.get('error')
-    if (denied) return backToIntegrations(tenant, { google: 'cancelada' }, req)
+    if (denied) return backToGoogleSurface(tenant, provider, { google: 'cancelada' }, req)
 
     const code = sp.get('code')
-    if (!code) return backToIntegrations(tenant, { google: 'error', motivo: 'sin_codigo' }, req)
+    if (!code) return backToGoogleSurface(tenant, provider, { google: 'error', motivo: 'sin_codigo' }, req)
 
     const sb = serviceClient()
     // Solo subcuentas activas conectan integraciones: una archivada/suspendida no puede crear ni
@@ -63,13 +84,13 @@ export async function GET(req: NextRequest) {
     const tenantId = (tenantRow as { id: string }).id
 
     const creds = await googleCredentials(tenantId)
-    if (!creds) return backToIntegrations(tenant, { google: 'error', motivo: 'sin_credenciales' }, req)
+    if (!creds) return backToGoogleSurface(tenant, provider, { google: 'error', motivo: 'sin_credenciales' }, req)
 
     const token = await exchangeCode(code, creds)
     if (token.error || !token.refresh_token) {
       // Sin refresh_token la conexión moriría en una hora, así que NO se guarda a medias. El caso
       // típico: Google no lo devuelve si ya se autorizó antes y no se fuerza prompt=consent.
-      return backToIntegrations(tenant, { google: 'error', motivo: token.error || 'sin_refresh_token' }, req)
+      return backToGoogleSurface(tenant, provider, { google: 'error', motivo: token.error || 'sin_refresh_token' }, req)
     }
 
     // Los ámbitos que Google concedió DE VERDAD, que pueden ser menos que los pedidos si el usuario
@@ -79,23 +100,49 @@ export async function GET(req: NextRequest) {
 
     const email = token.access_token ? await fetchGoogleEmail(token.access_token) : null
 
-    const { error } = await sb.from('google_oauth_connections').upsert(
-      {
-        tenant_id: tenantId,
-        provider,
-        google_email: email,
-        // Cifrado, nunca en claro: es una credencial de larga duración.
-        refresh_token: encryptSecret(token.refresh_token),
-        scopes: granted,
-        status: faltan.length > 0 ? 'error' : 'conectada',
-        last_error: faltan.length > 0 ? `Faltan permisos concedidos: ${faltan.join(', ')}` : null,
-      },
-      { onConflict: 'tenant_id,provider' }
-    )
-    if (error) return backToIntegrations(tenant, { google: 'error', motivo: 'no_se_pudo_guardar' }, req)
+    const connectionValues = {
+      tenant_id: tenantId,
+      provider,
+      google_email: email,
+      // Cifrado, nunca en claro: es una credencial de larga duración.
+      refresh_token: encryptSecret(token.refresh_token),
+      scopes: granted,
+      status: faltan.length > 0 ? 'error' : 'conectada',
+      last_error: faltan.length > 0 ? `Faltan permisos concedidos: ${faltan.join(', ')}` : null,
+      connected_by: userId,
+      ...(provider === 'calendar' ? { owner_user_id: userId } : {}),
+    }
 
-    return backToIntegrations(
+    // El índice tenant+provider de GA4/Gmail pasa a ser parcial para permitir N closers Calendar;
+    // PostgREST no puede inferir índices parciales en onConflict. Esas dos conexiones se sustituyen
+    // explícitamente, mientras Calendar conserva un upsert atómico por tenant+provider+usuario.
+    let error: { message: string } | null = null
+    if (provider === 'calendar') {
+      const saved = await sb
+        .from('google_oauth_connections')
+        .upsert(connectionValues, { onConflict: 'tenant_id,provider,owner_user_id' })
+      error = saved.error
+    } else {
+      const existing = await sb
+        .from('google_oauth_connections')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('provider', provider)
+        .maybeSingle()
+      if (existing.error) error = existing.error
+      else if (existing.data?.id) {
+        const saved = await sb.from('google_oauth_connections').update(connectionValues).eq('id', existing.data.id)
+        error = saved.error
+      } else {
+        const saved = await sb.from('google_oauth_connections').insert(connectionValues)
+        error = saved.error
+      }
+    }
+    if (error) return backToGoogleSurface(tenant, provider, { google: 'error', motivo: 'no_se_pudo_guardar' }, req)
+
+    return backToGoogleSurface(
       tenant,
+      provider,
       faltan.length > 0
         ? { google: 'permisos_incompletos', servicio: provider }
         : { google: 'conectada', servicio: provider },
