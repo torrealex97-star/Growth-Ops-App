@@ -1,14 +1,19 @@
-# Google Calendar por closer — FASE 1 EN CURSO, 8-oct-2026 (Codex)
+# Google Calendar por closer — FASE 2 EN CURSO, 8-oct-2026 (Codex)
 
-- **Rama única:** `codex/google-calendar-closer-phase1`. No abrir otra rama que toque OAuth Google,
-  CRM › Agendas o las tablas `google_oauth_*`/`google_connected_calendars` hasta cerrar esta fase.
-- **Auditoría:** `docs/GOOGLE_CALENDAR_AUDIT.md`. `appointments` sigue siendo la agenda canónica;
-  Calendar empieza en solo lectura y ningún evento externo afecta métricas en esta fase.
-- **Implementado:** conexión por `(tenant,user)`, state OAuth ligado al usuario, scopes mínimos,
-  selección principal/conflicto/read-only, descubrimiento paginado, reconexión y desconexión desde
-  Agendas. Migración preparada, todavía NO aplicada a producción.
-- **Pendiente de este bloque:** quality gate completo, review final, PR y dry-run de migración. La
-  Fase 2 (eventos + syncToken) empieza solo después de cerrar esta PR.
+- **Rama única:** `codex/google-calendar-closer-phase2`. No abrir otra rama que toque Calendar,
+  CRM › Agendas ni las tablas `google_connected_calendars`/eventos externos hasta cerrar esta fase.
+- **Fase 1 cerrada:** PR #404 fusionada (`3e39ce7c`), migración `20261008122259` aplicada y
+  registrada en producción, CI/E2E/Build y despliegue Vercel PASS.
+- **Reclamación Fase 2:** persistencia minimizada de eventos externos, initial sync paginado,
+  `syncToken`, recuperación segura ante token inválido, cancelaciones y ejecución manual
+  idempotente. `appointments` continúa siendo la única agenda comercial y fuente de KPIs.
+- **Implementado y TESTED:** migración `20261008130000` aplicada y registrada en producción tras
+  dry-run; tabla externa con RLS solo lectura, HMAC de asistentes, paginación Google, full sync
+  90d/180d, incremental, recuperación de HTTP 410, cerrojo por usuario y botón manual. Quality
+  completo (1.481 + 788 tests) y build limpio PASS. Producción tiene todavía 0 cuentas Calendar
+  autorizadas, por lo que la ingesta real queda como USER ACTION REQUIRED, no VERIFIED.
+- **Fuera de este bloque:** matching automático y conciliación manual (Fases 3–4), notificaciones,
+  dashboards y write-back. Ningún evento importado se convertirá todavía en contacto o agenda.
 
 ## Importación segura de plantillas de contrato — CERRADO EN PR #402, 7-oct-2026 (Codex)
 

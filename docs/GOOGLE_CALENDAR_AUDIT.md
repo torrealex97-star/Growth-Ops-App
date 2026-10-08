@@ -1,7 +1,8 @@
 # Google Calendar por closer — auditoría y plan de conciliación
 
-Fecha: 8-oct-2026. Estado: Fase 0 cerrada; Fase 1 implementada en código, pendiente de migración y
-OAuth real. No confundir **INSPECTED/TESTED** con **VERIFIED**.
+Fecha: 8-oct-2026. Estado: Fases 0–1 cerradas; Fase 2 implementada y migrada, pendiente de OAuth
+real de un closer para verificar la ingesta contra Google. No confundir **INSPECTED/TESTED** con
+**VERIFIED**.
 
 ## Impact map
 
@@ -60,8 +61,9 @@ Riesgo: **HIGH** (OAuth, credenciales, RLS, multi-tenant e identidad de citas).
 
 1. **Conexión individual (implementada en código):** scopes read-only, state ligado a usuario,
    calendario principal/conflicto/read-only, reconexión y desconexión.
-2. **Ingesta:** tabla de eventos externos no comerciales, initial sync paginado, `syncToken`,
-   borrados/cancelados, recurrencia y job idempotente con `integration_sync_runs`.
+2. **Ingesta (implementada):** tabla de eventos externos no comerciales, initial sync paginado,
+   `syncToken`, cancelaciones, recurrencia y job idempotente con `integration_sync_runs`. Rango
+   inicial: 90 días atrás y 180 hacia delante. Los emails de asistentes solo se persisten como HMAC.
 3. **Matching:** ID explícito > iCal UID > contacto invitado + franja/closer; reglas puras y
    explicables, sin match silencioso ambiguo.
 4. **Conciliación:** GOOGLE_ONLY, CRM_ONLY, MATCHED, POSSIBLE_DUPLICATE, TIME/CLOSER/STATUS_MISMATCH,
@@ -77,7 +79,9 @@ Riesgo: **HIGH** (OAuth, credenciales, RLS, multi-tenant e identidad de citas).
 1. En Google Cloud, activar Google Calendar API y registrar exactamente
    `https://app.scalixsystems.com/api/oauth/google/callback` en el cliente usado por
    `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`.
-2. Aplicar la migración `20261008122259_google_calendar_per_closer_read_only.sql` después del dry-run.
-3. Cada closer autoriza su propia cuenta desde CRM › Agendas › Mi Google Calendar.
+2. Cada closer autoriza su propia cuenta desde CRM › Agendas › Mi Google Calendar, selecciona al
+   menos un calendario y pulsa **Sincronizar ahora**.
 
-Hasta completar esos tres pasos, el flujo real es **INSPECTED + TESTED**, no **VERIFIED**.
+Las migraciones `20261008122259` y `20261008130000` están aplicadas, registradas y verificadas en
+producción. A 8-oct todavía hay 0 cuentas Calendar autorizadas; por ello la ingesta real sigue
+**INSPECTED + TESTED**, no **VERIFIED** contra datos de Google.

@@ -4,6 +4,8 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { googleCredentials } from '@/lib/google/oauth'
 import { accessTokenFromRefresh } from '@/lib/google/ga4'
 import { listGoogleCalendars, type GoogleCalendarListItem } from '@/lib/google/calendar'
+import { syncGoogleCalendars } from '@/lib/google/calendar-sync'
+import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 
@@ -145,6 +147,87 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
   } catch (error) {
     console.error('[api/google-calendar PUT]', error)
     return NextResponse.json({ error: 'No se pudo guardar el calendario.' }, { status: 500 })
+  }
+}
+
+/** Sincronización manual del caller. Solo persiste inventario externo; nunca crea appointments. */
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  try {
+    const { tenant } = await params
+    const session = await requireTenant(tenant)
+    if ('error' in session) return session.error
+    const { sb, connection } = await ownConnection(session.tenantId, session.userId)
+    if (!connection) return NextResponse.json({ error: 'Conecta Google Calendar primero.' }, { status: 409 })
+
+    const calendars = await sb
+      .from('google_connected_calendars')
+      .select('id, external_calendar_id, sync_token')
+      .eq('tenant_id', session.tenantId)
+      .eq('connection_id', connection.id)
+      .eq('owner_user_id', session.userId)
+      .eq('is_enabled', true)
+    if (calendars.error) throw calendars.error
+    if (!calendars.data?.length) {
+      return NextResponse.json({ error: 'Selecciona al menos un calendario antes de sincronizar.' }, { status: 409 })
+    }
+
+    const result = await recordSyncRun(
+      sb,
+      {
+        tenantId: session.tenantId,
+        provider: 'google_calendar',
+        job: `google-calendar:${session.userId}`,
+        trigger: 'manual',
+      },
+      () =>
+        syncGoogleCalendars({
+          sb,
+          tenantId: session.tenantId,
+          userId: session.userId,
+          ownerEmail: connection.google_email,
+          encryptedRefreshToken: connection.refresh_token,
+          calendars: calendars.data,
+        }),
+      (sync) => ({
+        rowsWritten: sync.eventsWritten,
+        failures: sync.failures,
+        detail: {
+          calendarios: sync.calendars,
+          completas: sync.fullSyncs,
+          incrementales: sync.incrementalSyncs,
+        },
+      })
+    )
+
+    const connectionUpdate = await sb
+      .from('google_oauth_connections')
+      .update({
+        status: result.reconnectRequired ? 'revocada' : result.failures.length > 0 ? 'error' : 'conectada',
+        last_sync_at: result.failures.length > 0 ? connection.last_sync_at : new Date().toISOString(),
+        last_error: result.failures[0] ?? null,
+      })
+      .eq('tenant_id', session.tenantId)
+      .eq('id', connection.id)
+      .eq('owner_user_id', session.userId)
+    if (connectionUpdate.error) throw connectionUpdate.error
+
+    return NextResponse.json(
+      { ok: result.failures.length === 0, ...result },
+      { status: result.failures.length ? 207 : 200 }
+    )
+  } catch (error) {
+    if (error instanceof SyncBusyError) {
+      return NextResponse.json({ error: 'Ya hay una sincronización de este calendario en curso.' }, { status: 409 })
+    }
+    const code = error instanceof Error && 'code' in error ? String(error.code) : ''
+    if (code === 'oauth_revocado') {
+      return NextResponse.json(
+        { error: 'Google revocó la autorización. Vuelve a conectar la cuenta.' },
+        { status: 409 }
+      )
+    }
+    console.error('[api/google-calendar POST]', error)
+    return NextResponse.json({ error: 'No se pudo sincronizar Google Calendar.' }, { status: 500 })
   }
 }
 

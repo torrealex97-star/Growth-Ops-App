@@ -41,6 +41,7 @@ export function GoogleCalendarSettings({ tenant }: { tenant: string }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
   const [state, setState] = useState<CalendarState | null>(null)
 
   useEffect(() => {
@@ -142,6 +143,29 @@ export function GoogleCalendarSettings({ tenant }: { tenant: string }) {
     }
   }
 
+  async function syncNow() {
+    setSyncing(true)
+    try {
+      const response = await fetch(`/api/${tenant}/evergreen/google-calendar`, { method: 'POST' })
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string
+        eventsWritten?: number
+        failures?: string[]
+      }
+      if (!response.ok && response.status !== 207) throw new Error(payload.error || 'No se pudo sincronizar')
+      if (payload.failures?.length) {
+        toast.warning(`Sincronización parcial: ${payload.failures.length} calendario(s) con error`)
+      } else {
+        toast.success(`${payload.eventsWritten ?? 0} evento(s) revisados sin crear agendas duplicadas`)
+      }
+      await load(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo sincronizar Google Calendar')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const connectUrl = `/api/${tenant}/evergreen/oauth/google/start?provider=calendar`
 
   return (
@@ -189,10 +213,24 @@ export function GoogleCalendarSettings({ tenant }: { tenant: string }) {
                   <p className="text-sm font-medium">{state.accountEmail || 'Cuenta de Google conectada'}</p>
                   <p className="text-xs text-muted-foreground">Solo lectura · conexión personal de esta subcuenta</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={loading}>
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                  Actualizar lista
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => void syncNow()} disabled={syncing || state.selected.length === 0}>
+                    {syncing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    Sincronizar ahora
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={loading}>
+                    {loading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    Actualizar lista
+                  </Button>
+                </div>
               </div>
 
               <div>
