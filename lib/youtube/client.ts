@@ -4,6 +4,7 @@
 //   YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN
 import { google } from 'googleapis'
 import { Readable } from 'stream'
+import { googleRedirectUri } from '@/lib/google/oauth'
 
 /**
  * Credenciales de YouTube de UNA subcuenta. Explícitas, como en Meta e Instagram: leerlas de
@@ -22,11 +23,7 @@ export function isYoutubeConfigured(env: YoutubeEnv): boolean {
 }
 
 function getAuthClient(env: YoutubeEnv) {
-  const oauth2Client = new google.auth.OAuth2(
-    env.YOUTUBE_CLIENT_ID,
-    env.YOUTUBE_CLIENT_SECRET,
-    'https://developers.google.com/oauthplayground' // redirect_uri: solo se usa para el refresh, no hace falta que sea real
-  )
+  const oauth2Client = new google.auth.OAuth2(env.YOUTUBE_CLIENT_ID, env.YOUTUBE_CLIENT_SECRET, googleRedirectUri())
   oauth2Client.setCredentials({ refresh_token: env.YOUTUBE_REFRESH_TOKEN })
   return oauth2Client
 }

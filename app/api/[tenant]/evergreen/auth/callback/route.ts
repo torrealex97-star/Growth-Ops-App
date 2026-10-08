@@ -43,7 +43,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ok = !error
     }
 
-    if (ok) return NextResponse.redirect(`${origin}${next}`)
+    if (ok) {
+      // OAuth autentica la identidad, no concede acceso a una subcuenta. La consulta pasa por RLS:
+      // solo devuelve fila para miembros de este tenant o superadmins de plataforma.
+      const { data: tenantRow } = await supabase.from('tenants').select('id, status').eq('slug', tenant).maybeSingle()
+      if (!tenantRow || tenantRow.status !== 'active') {
+        await supabase.auth.signOut()
+        return NextResponse.redirect(`${origin}/${tenant}/login?error=no_tenant_access`)
+      }
+      return NextResponse.redirect(`${origin}${next}`)
+    }
     return NextResponse.redirect(`${origin}/${tenant}/login?error=auth_callback_failed`)
   } catch (err) {
     console.error('[api/auth/callback GET]', err)

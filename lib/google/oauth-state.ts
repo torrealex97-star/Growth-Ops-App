@@ -17,7 +17,7 @@ export type OAuthStatePayload = {
   /** Slug de la subcuenta que inició el flujo. */
   tenant: string
   /** Para qué se pide el permiso. Un flujo de GA4 no debe poder guardarse como conexión de Gmail. */
-  provider: 'ga4' | 'gmail' | 'calendar'
+  provider: 'ga4' | 'gmail' | 'calendar' | 'youtube'
   /** Usuario autenticado que inició el flujo. Impide reclamar la conexión de otro closer. */
   userId: string
   /** Marca de tiempo de emisión (ms). */
@@ -88,7 +88,10 @@ export function verifyState(state: string | null | undefined, now = Date.now()):
     !payload ||
     typeof payload.tenant !== 'string' ||
     !payload.tenant ||
-    (payload.provider !== 'ga4' && payload.provider !== 'gmail' && payload.provider !== 'calendar') ||
+    (payload.provider !== 'ga4' &&
+      payload.provider !== 'gmail' &&
+      payload.provider !== 'calendar' &&
+      payload.provider !== 'youtube') ||
     typeof payload.userId !== 'string' ||
     !payload.userId ||
     typeof payload.iat !== 'number'

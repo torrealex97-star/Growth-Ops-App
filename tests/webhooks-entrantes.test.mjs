@@ -205,9 +205,14 @@ test('stripe: sin entregas válidas pero con rechazos → el rechazo se ve y "re
 
 // ── El bloque pintado ────────────────────────────────────────────────────────
 
-test('la página integra el bloque y el GET lo alimenta con evidencia del servidor', () => {
+test('cada ficha integra sus propios webhooks y el GET lo alimenta con evidencia del servidor', () => {
   const page = readFileSync(join(root, 'app/[tenant]/settings/integraciones/page.tsx'), 'utf8')
-  assert.match(page, /<WebhooksEntrantesPanel webhooks=\{webhooksEntrantes\} tenant=\{tenant\} \/>/)
+  assert.match(page, /<ProviderWebhooks webhooks=\{webhooksEntrantes\} tenant=\{tenant\} groupId=\{g\.id\} \/>/)
+  assert.doesNotMatch(page, /<WebhooksEntrantesPanel/)
+
+  const component = readFileSync(join(root, 'components/integrations/WebhooksEntrantesPanel.tsx'), 'utf8')
+  assert.match(component, /webhook\.groupId === groupId/)
+  assert.doesNotMatch(component, /export function WebhooksEntrantesPanel/)
 
   const route = readFileSync(join(root, 'app/api/[tenant]/evergreen/settings/integraciones/route.ts'), 'utf8')
   // El estado se calcula en el servidor con las fuentes de evidencia reales.

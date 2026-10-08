@@ -28,6 +28,9 @@ const PUBLIC_PATHS = [
   // sesión aquí. La ruta se autentica con el `state` FIRMADO que verifica ella misma: sin firma
   // válida no sigue adelante. Ver lib/google/oauth-state.ts.
   '/api/oauth/google/callback',
+  // Meta/Instagram usan el mismo patrón: callback global, state firmado y comprobación de que la
+  // sesión que vuelve es la que inició el flujo. No es una API pública de datos.
+  '/api/oauth/meta/callback',
   // Página intermedia de "Ver como": se autentica con el token OTP de un solo uso que trae en la
   // query (el middleware NO puede exigir sesión — la sesión que crea es justamente su output).
   // Vive fuera de /[tenant] porque el layout del tenant exige sesión (punto muerto).

@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useTenantBranding } from '@/lib/tenant-context'
 import { ShaderBackground } from '@/components/ui/mesh-drift-shader'
-import { Loader2, Mail, Lock } from 'lucide-react'
+import { Loader2, LogIn, Mail, Lock } from 'lucide-react'
 
 // Next.js 15: `params` pasa a ser una Promise — useParams() de next/navigation sigue siendo
 // síncrono en Client Components, evita React.use() (requiere React 19).
@@ -42,6 +42,26 @@ export default function LoginPage() {
       vigente = false
     }
   }, [tenant])
+
+  useEffect(() => {
+    const motivo = new URLSearchParams(window.location.search).get('error')
+    if (motivo === 'no_tenant_access') setError('Tu cuenta de Google no tiene acceso a esta subcuenta.')
+    else if (motivo === 'auth_callback_failed') setError('Google no pudo completar el inicio de sesión.')
+  }, [])
+
+  const handleGoogleLogin = async () => {
+    setError('')
+    setLoading(true)
+    const redirectTo = `${window.location.origin}/api/${tenant}/evergreen/auth/callback?next=/${tenant}/dashboard`
+    const { error: authError } = await createClient().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo, queryParams: { prompt: 'select_account' } },
+    })
+    if (authError) {
+      setError(`No se pudo iniciar con Google: ${authError.message}`)
+      setLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -146,7 +166,23 @@ export default function LoginPage() {
           ) : (
             <>
               <h2 className="text-lg font-semibold text-foreground mb-1">Iniciar sesión</h2>
-              <p className="text-muted-foreground text-sm mb-6">Introduce tus credenciales para continuar</p>
+              <p className="text-muted-foreground text-sm mb-6">Accede con Google o con tus credenciales.</p>
+
+              <button
+                type="button"
+                onClick={() => void handleGoogleLogin()}
+                disabled={loading}
+                className="mb-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background/60 px-4 font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <LogIn className="h-4 w-4" aria-hidden />
+                Continuar con Google
+              </button>
+
+              <div className="mb-5 flex items-center gap-3" aria-hidden>
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">o con email</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1.5">
