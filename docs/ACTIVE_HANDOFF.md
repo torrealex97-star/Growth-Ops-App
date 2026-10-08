@@ -1,3 +1,23 @@
+# En curso · hardening de credenciales OAuth en Integraciones (Codex, 8-oct-2026)
+
+- **Rama única:** `codex/oauth-credential-hardening`.
+- **Hallazgo reproducido en producción:** el gestor de contraseñas puede autocompletar el email y la
+  contraseña de acceso dentro de `Client ID` / `Client Secret`; además el servidor aceptaba esos
+  valores sin validar el formato del proveedor. Alcance reclamado: formulario de Integraciones,
+  validación del endpoint de configuración y regresiones focales. No modifica tokens ni datos.
+- **Corregido:** campos marcados para impedir autofill de navegador/1Password/LastPass; botones OAuth
+  deshabilitados hasta que el Client ID tenga formato real; la API rechaza Client IDs de
+  Google/YouTube y App IDs de Meta imposibles antes de persistirlos; los endpoints de inicio también
+  fallan cerrados si un valor inválido ya estaba guardado.
+- **Validación local aislada:** Prettier PASS, lint PASS (solo avisos heredados), typecheck PASS,
+  focales OAuth 28/28 PASS, métricas 788/788 PASS. Suite completa: 1.492/1.495 PASS; los tres únicos
+  fallos son consultas de esquema vivo bloqueadas por DNS en el sandbox. Build: bloqueado por el
+  mismo DNS al descargar Google Fonts; lo decidirá CI con red.
+- **Producción inspeccionada:** PR #407 ya está fusionada (`370f8f37`) y Vercel `READY`. El panel
+  declara `META_APP_SECRET`, `RESEND_API_KEY` y `YOUTUBE_CLIENT_SECRET` indescifrables con la
+  `CONFIG_ENC_KEY` actual; requieren volver a introducir los valores originales. Google no tiene un
+  cliente OAuth válido configurado. No se imprimió, copió ni modificó ningún secreto.
+
 # Google Calendar por closer — FASE 3 CERRADA EN PR #406, 8-oct-2026 (Codex)
 
 - **Rama única:** `codex/google-calendar-reconciliation`. Reclama el matching Calendar↔CRM,

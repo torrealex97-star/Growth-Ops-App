@@ -1,5 +1,6 @@
 // Piezas compartidas del flujo OAuth con Google.
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { isGoogleOAuthClientId } from '@/lib/integrations/oauth-credentials'
 
 /**
  * Ámbitos por servicio. TODOS de solo lectura: esta app nunca necesita escribir en la analítica ni
@@ -55,7 +56,7 @@ export async function googleCredentials(
   // común de Google; en ambos casos la persona solo pulsa OAuth y el secreto nunca pasa al browser.
   const clientId = provider === 'youtube' ? cfg.YOUTUBE_CLIENT_ID : cfg.GOOGLE_CLIENT_ID
   const clientSecret = provider === 'youtube' ? cfg.YOUTUBE_CLIENT_SECRET : cfg.GOOGLE_CLIENT_SECRET
-  if (!clientId || !clientSecret) return null
+  if (!isGoogleOAuthClientId(clientId) || !clientSecret) return null
   return { clientId, clientSecret }
 }
 

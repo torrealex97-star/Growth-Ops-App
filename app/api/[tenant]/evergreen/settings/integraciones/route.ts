@@ -20,6 +20,7 @@ import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-versio
 import { classifyMetaError } from '@/lib/meta/errors'
 import { comprobarSaludMeta } from '@/lib/meta/salud'
 import { guardarComprobacion, HEALTH_KEY, parseLastChecks } from '@/lib/integrations/comprobaciones'
+import { oauthCredentialValidationError } from '@/lib/integrations/oauth-credentials'
 import { comprobarSaludInstagram } from '@/lib/instagram/salud'
 import { stripeGet } from '@/lib/stripe/client'
 import { listarModelos, ModelosError, resolverModelo } from '@/lib/ai/modelos'
@@ -281,6 +282,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   const updates = body.updates || {}
   const clear = body.clear || []
+
+  const oauthValidationError = oauthCredentialValidationError(updates)
+  if (oauthValidationError) return NextResponse.json({ error: oauthValidationError }, { status: 400 })
 
   // F33 · Al guardar un token de Meta nuevo en una subcuenta SIN cuenta publicitaria elegida, si el
   // token ve exactamente una cuenta activa se selecciona sola: sin selección no se sincroniza
