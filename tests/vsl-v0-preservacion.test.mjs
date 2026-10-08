@@ -97,13 +97,33 @@ test('sync: vsl_watch_pct monótono y fallos aislados (columnas ausentes no romp
 })
 
 // ---------------------------------------------------------------------------
-// 6. EMBED: el embed público sigue sirviendo el vídeo sin auth
+// 6. EMBED: público sin auth, pero resuelto por tenant y sin cruces entre cuentas
 // ---------------------------------------------------------------------------
-test('embed: sigue siendo público por slug y con 404 amigable', () => {
+test('embed: sigue siendo público, lleva tenant explícito y conserva el 404 amigable', () => {
   const embed = lee('app/embed/vsl/[slug]/page.tsx')
-  assert.match(embed, /FROM vsl_videos WHERE slug = \$\{slug\}/, 'lookup por slug (sin tenant: embed público)')
+  const dashboard = lee('components/vsl/VslDashboard.tsx')
+  assert.match(embed, /resolvePublicVsl\(slug, tenant\)/, 'el embed usa la resolución pública canónica')
+  assert.match(dashboard, /\?tenant=\$\{encodeURIComponent\(tenant\)\}/, 'el snippet identifica la subcuenta')
   assert.match(embed, /Vídeo no encontrado/, '404 amigable')
   assert.match(embed, /preconnect/, 'preconnect del CDN intacto')
+})
+
+test('embed/session: un slug compartido falla cerrado y nunca elige un tenant por LIMIT 1', () => {
+  const resolver = lee('lib/vsl/public-video.ts')
+  const session = lee('app/api/vsl/session/route.ts')
+  assert.match(resolver, /INNER JOIN tenants t ON t\.id = v\.tenant_id/, 'tenant resuelto en PostgreSQL')
+  assert.match(resolver, /AND t\.slug = \$\{tenant\}/, 'el lookup actual exige el slug del tenant')
+  assert.match(resolver, /LIMIT 2/, 'el fallback antiguo detecta al menos una colisión')
+  assert.match(resolver, /rows\.length > 1/, 'una colisión se declara ambigua')
+  assert.match(session, /status === 'ambiguous'/, 'la sesión rechaza un embed antiguo ambiguo')
+  assert.match(session, /status: 409/, 'la respuesta obliga a regenerar el embed')
+})
+
+test('postMessage: solo el iframe VSL y su ventana padre pueden intercambiar identidad', () => {
+  const player = lee('components/vsl/VslPlayer.tsx')
+  const loader = lee('app/embed/loader.js/route.ts')
+  assert.match(player, /e\.source !== window\.parent/, 'el player rechaza mensajes ajenos al padre')
+  assert.match(loader, /isVslFrameSource\(e\.source\)/, 'la landing rechaza ready de ventanas ajenas')
 })
 
 // ---------------------------------------------------------------------------
@@ -113,10 +133,10 @@ test('V1: los vídeos se borran en soft (deleted_at) y todo lookup respeta los b
   const videos = lee('app/api/[tenant]/evergreen/vsl/videos/route.ts')
   assert.match(videos, /SET deleted_at = now\(\)/, 'DELETE lógico, no físico')
   assert.match(videos, /deleted_at IS NULL/, 'el listado excluye borrados')
-  const embed = lee('app/embed/vsl/[slug]/page.tsx')
-  assert.match(embed, /deleted_at IS NULL/, 'el embed no sirve vídeos borrados')
+  const resolver = lee('lib/vsl/public-video.ts')
+  assert.match(resolver, /v\.deleted_at IS NULL/, 'embed y sesiones solo resuelven vídeos vivos')
   const session = lee('app/api/vsl/session/route.ts')
-  assert.match(session, /deleted_at IS NULL/, 'las sesiones solo nacen para vídeos vivos')
+  assert.match(session, /resolvePublicVsl/, 'las sesiones reutilizan el mismo filtro de vídeos vivos')
 })
 
 test('V1: session y track llevan rate limit ( MinuteRateLimiter del pixel)', () => {

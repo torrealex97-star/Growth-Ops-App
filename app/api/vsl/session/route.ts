@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { sql } from '@/lib/vsl/db'
 import { MinuteRateLimiter } from '@/lib/tracking/ingest'
+import { resolvePublicVsl } from '@/lib/vsl/public-video'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ function detectDevice(ua: string): string {
 // Crea (o recupera) la sesión de visionado para un anon_id + vídeo.
 export async function POST(req: Request) {
   try {
-    const { slug, anonId, referrer } = await req.json()
+    const { slug, tenant, anonId, referrer } = await req.json()
     if (!slug || !anonId) {
       return NextResponse.json({ error: 'slug y anonId requeridos' }, { status: 400 })
     }
@@ -31,10 +32,14 @@ export async function POST(req: Request) {
     const country = req.headers.get('x-vercel-ip-country') || req.headers.get('cf-ipcountry') || null
     const device = detectDevice(ua)
 
-    const [video] = await sql`
-      SELECT id FROM vsl_videos WHERE slug = ${slug} AND deleted_at IS NULL LIMIT 1
-    `
-    if (!video) return NextResponse.json({ error: 'Vídeo no encontrado' }, { status: 404 })
+    const resolution = await resolvePublicVsl(slug, typeof tenant === 'string' ? tenant : null)
+    if (resolution.status === 'ambiguous') {
+      return NextResponse.json({ error: 'El embed debe indicar la subcuenta' }, { status: 409 })
+    }
+    if (resolution.status === 'not_found') {
+      return NextResponse.json({ error: 'Vídeo no encontrado' }, { status: 404 })
+    }
+    const { video } = resolution
 
     const [row] = await sql`
       INSERT INTO vsl_sessions (video_id, anon_id, referrer, device, country, user_agent)

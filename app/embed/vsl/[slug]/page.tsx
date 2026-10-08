@@ -1,4 +1,5 @@
-import { sql, mergeConfig } from '@/lib/vsl/db'
+import { mergeConfig } from '@/lib/vsl/db'
+import { resolvePublicVsl } from '@/lib/vsl/public-video'
 import { VslPlayer } from '@/components/vsl/VslPlayer'
 
 export const dynamic = 'force-dynamic'
@@ -13,20 +14,27 @@ function originOf(u: string | null | undefined): string | null {
   }
 }
 
-export default async function VslEmbedPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function VslEmbedPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ tenant?: string }>
+}) {
   const { slug } = await params
-  const [video] = await sql`
-    SELECT slug, name, source_url, poster_url, duration_seconds, config
-    FROM vsl_videos WHERE slug = ${slug} AND deleted_at IS NULL LIMIT 1
-  `
+  const { tenant } = await searchParams
+  const resolution = await resolvePublicVsl(slug, tenant)
 
-  if (!video) {
+  if (resolution.status !== 'found') {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-black text-sm text-white/50">
-        Vídeo no encontrado.
+        {resolution.status === 'ambiguous'
+          ? 'Este código de inserción es antiguo. Genera uno nuevo desde la subcuenta.'
+          : 'Vídeo no encontrado.'}
       </div>
     )
   }
+  const { video } = resolution
 
   const mediaOrigins = Array.from(
     new Set([originOf(video.source_url), originOf(video.poster_url)].filter(Boolean) as string[])
@@ -46,6 +54,7 @@ export default async function VslEmbedPage({ params }: { params: Promise<{ slug:
       <VslPlayer
         embed
         video={{
+          tenant: video.tenant_slug,
           slug: video.slug,
           source_url: video.source_url,
           poster_url: video.poster_url,

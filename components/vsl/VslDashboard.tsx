@@ -136,12 +136,12 @@ export function VslDashboard() {
   const snippet = useMemo(() => {
     if (!selected) return ''
     return `<!-- VSL -->
-<iframe src="${origin}/embed/vsl/${selected}"
+<iframe src="${origin}/embed/vsl/${selected}?tenant=${encodeURIComponent(tenant)}"
   style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px"
   allow="autoplay; fullscreen" allowfullscreen></iframe>
 <script src="${origin}/embed/loader.js"></script>
 <!-- Tras enviar el formulario, llama a: window.tccVSL.identify('EMAIL_DEL_LEAD') -->`
-  }, [selected, origin])
+  }, [selected, origin, tenant])
 
   const copySnippet = () => {
     navigator.clipboard.writeText(snippet)
@@ -723,6 +723,7 @@ function VideoForm({
               <VslPlayer
                 preview
                 video={{
+                  tenant,
                   slug: initial.slug || 'preview',
                   source_url: sourceUrl,
                   poster_url: posterUrl || null,

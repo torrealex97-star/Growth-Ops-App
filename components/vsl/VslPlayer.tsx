@@ -16,6 +16,7 @@ interface WebkitFullscreenElement extends HTMLElement {
 }
 
 export interface VslPlayerVideo {
+  tenant: string
   slug: string
   source_url: string | null
   poster_url: string | null
@@ -250,7 +251,7 @@ export function VslPlayer({
       fetch('/api/vsl/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: video.slug, anonId, referrer: document.referrer || null }),
+        body: JSON.stringify({ tenant: video.tenant, slug: video.slug, anonId, referrer: document.referrer || null }),
       })
         .then((r) => r.json())
         .then((d) => {
@@ -260,7 +261,7 @@ export function VslPlayer({
             // para que loader.js pueda enganchar el visionado ANÓNIMO a una cita de Calendly
             // (lo pasa como salesforce_uuid en el enlace, aunque el lead no haga optin).
             try {
-              window.parent?.postMessage({ __tccvsl: 'ready', slug: video.slug, anonId }, '*')
+              window.parent?.postMessage({ __tccvsl: 'ready', tenant: video.tenant, slug: video.slug, anonId }, '*')
             } catch {
               // Se ignora a propósito: el reproductor va en un iframe de otro dominio y `window.parent`
               // puede no existir (abierto directo) o rechazar el mensaje. Es una señal opcional para la
@@ -311,6 +312,7 @@ export function VslPlayer({
   // ---- identify() desde la landing (parent) ---------------------------------
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
+      if (e.source !== window.parent) return
       const d = e.data
       if (!d || d.__tccvsl !== 'identify') return
       if (!sessionRef.current) return

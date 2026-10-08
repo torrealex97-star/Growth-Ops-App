@@ -1,15 +1,24 @@
-# EN CURSO · VSL Intelligence PR-0 discovery y matriz de paridad (9-oct-2026, Codex)
+# EN CURSO · VSL Intelligence PR-1a frontera pública tenant-safe (9-oct-2026, Codex)
 
-- **Rama única:** `codex/vsl-intelligence-discovery`.
-- **Alcance reclamado:** auditoría y documentación de `components/vsl`, `lib/vsl`, rutas
-  `app/api/vsl`, APIs tenant de VSL, embeds, migraciones y pruebas VSL. PR-0 no modifica esquema,
-  métricas, datos ni reproducción.
-- **Objetivo:** fijar con evidencia el reproductor real, contrato actual, fórmulas, huecos,
-  limitaciones históricas y plan PR-1→PR-10 antes de ampliar telemetría.
-- **Hallazgo prioritario:** `slug` es único por tenant pero los endpoints públicos resuelven solo por
-  slug; PR-1 debe hacer tenant explícito en embed/session antes de extender tracking.
-- **Siguiente exacto:** cerrar matriz de paridad, Quality Gate documental, PR/merge; después abrir
-  PR-1 desde `main` para aislamiento público + versiones/playbacks/eventos/intervalos.
+- **Rama única:** `codex/vsl-tenant-safe-embed`.
+- **Alcance reclamado:** resolución pública canónica de VSL, `app/embed/vsl/[slug]`,
+  `app/api/vsl/session`, snippet de `VslDashboard`, mensajes del player/loader y regresiones VSL.
+  No modifica esquema, métricas, datos históricos ni reproducción Bunny.
+- **Objetivo:** impedir que dos subcuentas con el mismo slug compartan accidentalmente vídeo o
+  sesión. Los embeds nuevos llevan tenant explícito; un embed antiguo solo funciona si el slug es
+  inequívoco globalmente y falla cerrado cuando hay colisión.
+- **Estado previo:** PR-0 fusionada en #413 (`38a09f5d`); inventario y plan autoritativos en
+  `docs/VSL_INTELLIGENCE_DISCOVERY.md`.
+- **Implementado:** resolución compartida `tenant + slug`; embeds antiguos solo si el slug es
+  inequívoco; sesión 409 ante colisión; snippet con tenant; player y loader solo aceptan mensajes de
+  su ventana esperada. Sin migración ni cambios en métricas o datos.
+- **TESTED en clon aislado:** focales VSL 13/13; `npm run quality` PASS (lint solo con avisos
+  heredados); unitarias y métricas PASS; `npm run dead-code` sin deuda nueva; build limpio de
+  producción PASS tras habilitar red únicamente para Google Fonts.
+- **NOT VERIFIED:** pendiente Preview/producción y una prueba con dos tenants que reutilicen el mismo
+  slug. No hay fixture de datos real autorizado en esta fase.
+- **Siguiente exacto:** abrir y fusionar PR pequeña; después PR-1b desde `main` para versiones,
+  playbacks, eventos idempotentes e intervalos.
 
 # CERRADO EN RAMA · perfiles financieros de equipo comisionable (9-oct-2026, Codex)
 
