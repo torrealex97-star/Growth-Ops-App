@@ -1,3 +1,22 @@
+# CERRADO EN RAMA · observabilidad CSP en modo solo informe (9-oct-2026, Codex)
+
+- **Rama única:** `codex/csp-reporting`.
+- **Alcance reclamado:** política CSP Report-Only, receptor público acotado, sanitización de
+  informes y regresiones. No se endurece todavía la CSP aplicada ni se persisten URLs completas,
+  payloads o datos del navegador.
+- **Objetivo:** observar qué recursos rompería una CSP estricta antes de activarla, distinguiendo
+  evidencia real de suposiciones y sin convertir el receptor en un sumidero de abuso.
+- **Implementado:** cabecera `Content-Security-Policy-Report-Only` y receptor compatible con CSP
+  clásica/Reporting API; 32 KiB máximos, 12 informes por IP/5 min, lotes de hasta 20 y respuesta
+  `no-store`. Solo se registran directiva, disposición, estado y orígenes normalizados. La CSP
+  aplicada sigue sin bloquear scripts nuevos; `unsafe-inline` queda temporalmente en report-only
+  para evitar una tormenta de falsos positivos de hidratación.
+- **TESTED en clon aislado:** focales 4/4, formato PASS, lint PASS con avisos heredados, typecheck
+  PASS, unitarias completas PASS, métricas 788/788 y build limpio de producción PASS. La primera
+  build sin red falló exclusivamente al descargar Google Fonts; repetida con red autorizada, PASS.
+- **Siguiente:** observar los orígenes reportados en Vercel tras desplegar y preparar nonces/hashes;
+  no convertir a CSP bloqueante a ciegas.
+
 # CERRADO · equipo comisionable visible en Colaboradores (PR #409, 8-oct-2026)
 
 - **Rama única:** `codex/commissionable-team-panel`.

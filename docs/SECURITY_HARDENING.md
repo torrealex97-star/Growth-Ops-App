@@ -35,8 +35,12 @@ propias del proyecto. Sin nombres de subcuentas ni credenciales (ver `docs/SECUR
 2. **Supabase → Authentication → Passwords:** activar _Leaked password protection_ (aviso del linter).
 3. **Supabase Auth:** limitar intentos de login/OTP en _Rate Limits_ y revisar la lista de _Redirect URLs_
    (solo los dominios propios).
-4. **CSP de scripts** (siguiente paso, no incluido): introducirla primero en modo «solo informe»
-   (`Content-Security-Policy-Report-Only`) para no romper Meta, Stripe, vídeo ni fuentes.
+4. **CSP de scripts — observación implementada:** `Content-Security-Policy-Report-Only` informa a
+   `/api/security/csp-report` sin bloquear Meta, Stripe, vídeo ni fuentes. El receptor limita
+   tamaño/frecuencia y conserva solo directiva y origen (sin path, query, fragmento ni muestra de
+   script). Antes de convertirla en bloqueante, observar producción y declarar los orígenes reales;
+   `unsafe-inline` permanece temporalmente para evitar ruido masivo de hidratación hasta diseñar
+   nonces/hashes.
 5. **Extensiones en `public`** (`vector`, `pg_trgm`): aviso de bajo riesgo; moverlas a `extensions` exige
    recrear dependencias, hacerlo en una ventana con prueba.
 6. Rotar cualquier secreto que haya pasado por chats o capturas, y mantener `gitleaks` activo en CI.
