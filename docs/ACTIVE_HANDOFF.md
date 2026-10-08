@@ -1,11 +1,16 @@
-## Importación segura de plantillas de contrato — EN CURSO, 7-oct-2026 (Codex)
+## Importación segura de plantillas de contrato — CERRADO EN PR #402, 7-oct-2026 (Codex)
 
-- **Rama única:** `codex/contract-template-import`, creada desde `main` después de cerrar y eliminar
-  las ramas de las PR #400/#401. Reclamación acotada a importar PDF/TXT/Markdown en el editor de
-  plantillas; no modifica contratos firmados ni añade otra tabla o fuente de verdad.
+- **Fusionado y desplegado:** PR #402, squash `c31af0a4`; CI Quality, Build, Smoke E2E, Release gate,
+  gitleaks y Vercel Preview PASS. Producción Vercel PASS (`HzMtme4nMHmQuQMxnFHdVeDiF1C2`) y rama
+  funcional eliminada.
 - **SEARCH BEFORE CREATE:** ya existían el editor `/contratos/plantillas`, la tabla
   `contract_templates` y el extractor serverless `unpdf`; se reutilizan. El hueco real era que el
   usuario debía copiar el texto manualmente.
+- **Implementado:** botón de importación PDF/TXT/Markdown; abre el editor para revisión y nunca
+  guarda ni sobrescribe automáticamente. Ruta limitada a admin/director y a 4 MB/120.000 caracteres;
+  valida la firma real del PDF, rechaza vacío/tipo inválido y explica los PDFs escaneados sin texto.
+- **TESTED:** 7 regresiones focales (incluido PDF real y orden autorización → lectura), format, lint,
+  typecheck, suite completa, métricas 788/788 y build de producción PASS.
 
 ## Lead scoring explicable desde formularios — CERRADO EN PR #400, 7-oct-2026 (Codex)
 
