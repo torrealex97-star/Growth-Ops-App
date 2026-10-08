@@ -30,6 +30,9 @@ export async function GET() {
       try { f.contentWindow.postMessage(Object.assign({ __tccvsl: 'identify' }, payload), '*'); } catch (_) { /* opcional: ver la nota del fichero */ }
     });
   }
+  function isVslFrameSource(source){
+    return frames().some(function(f){ return f.contentWindow === source; });
+  }
   function bad(v){ return !v || v.indexOf('{{') !== -1 || v.indexOf('}}') !== -1; }
   window.tccVSL = window.tccVSL || {};
   window.tccVSL.identify = function(data){
@@ -69,6 +72,7 @@ export async function GET() {
   // Reenvía a iframes que carguen después (cuando avisan 'ready') y capta el anonId.
   window.addEventListener('message', function(e){
     if (!e.data || e.data.__tccvsl !== 'ready') return;
+    if (!isVslFrameSource(e.source)) return;
     if (e.data.anonId){ anonId = e.data.anonId; try { decorateCalendly(); } catch (_) { /* opcional: ver la nota del fichero */ } }
     if (pending) { try { e.source.postMessage(Object.assign({ __tccvsl: 'identify' }, pending), '*'); } catch (_) { /* opcional: ver la nota del fichero */ } }
   });
