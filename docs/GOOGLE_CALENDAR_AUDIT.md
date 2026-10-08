@@ -1,7 +1,7 @@
 # Google Calendar por closer — auditoría y plan de conciliación
 
-Fecha: 8-oct-2026. Estado: Fases 0–2 cerradas; Fase 3 en curso, pendiente de OAuth
-real de un closer para verificar la ingesta contra Google. No confundir **INSPECTED/TESTED** con
+Fecha: 8-oct-2026. Estado: Fases 0–3 cerradas; pendiente de OAuth real de un closer para verificar
+la ingesta contra Google. No confundir **INSPECTED/TESTED** con
 **VERIFIED**.
 
 ## Impact map
@@ -24,7 +24,7 @@ Riesgo: **HIGH** (OAuth, credenciales, RLS, multi-tenant e identidad de citas).
 | OAuth Google              | PARTIAL        | state HMAC, refresh token cifrado; solo `ga4`/`gmail`, conexión de tenant            |
 | Google Calendar operativo | MISSING        | sin scopes, CalendarList, events.list, syncToken ni watch                            |
 | Dedupe de agendas         | PARTIAL        | `(tenant_id, external_id)` + helper por ID/contacto+minuto; sin iCal UID/recurrencia |
-| Conciliación Calendar↔CRM | MISSING        | no existía inventario externo ni estados de reconciliación                           |
+| Conciliación Calendar↔CRM | IMPLEMENTED    | reglas explicables, estados persistidos y escritura batch solo por `service_role`     |
 | Logs de sync              | STABLE         | `integration_sync_runs`, todavía sin job Calendar                                    |
 
 ## Decisiones de arquitectura
@@ -84,6 +84,8 @@ Riesgo: **HIGH** (OAuth, credenciales, RLS, multi-tenant e identidad de citas).
 2. Cada closer autoriza su propia cuenta desde CRM › Agendas › Mi Google Calendar, selecciona al
    menos un calendario y pulsa **Sincronizar ahora**.
 
-Las migraciones `20261008122259` y `20261008130000` están aplicadas, registradas y verificadas en
-producción. A 8-oct todavía hay 0 cuentas Calendar autorizadas; por ello la ingesta real sigue
-**INSPECTED + TESTED**, no **VERIFIED** contra datos de Google.
+Las migraciones `20261008122259`, `20261008130000` y `20261008143000` están aplicadas, registradas y
+verificadas en producción. Para la última se comprobó además que la función batch no es ejecutable
+por `anon` ni `authenticated`, pero sí por `service_role`. A 8-oct todavía hay 0 cuentas Calendar
+autorizadas; por ello la ingesta y conciliación reales siguen **INSPECTED + TESTED**, no
+**VERIFIED** contra datos de Google.

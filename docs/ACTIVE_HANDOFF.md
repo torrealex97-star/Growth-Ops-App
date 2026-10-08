@@ -1,4 +1,4 @@
-# Google Calendar por closer — FASE 3 EN CURSO, 8-oct-2026 (Codex)
+# Google Calendar por closer — FASE 3 CERRADA EN PR #406, 8-oct-2026 (Codex)
 
 - **Rama única:** `codex/google-calendar-reconciliation`. Reclama el matching Calendar↔CRM,
   su persistencia, endpoint de conciliación y tests. No tocar UI general de Agendas fuera de lo
@@ -7,13 +7,14 @@
   `20261008122259` y `20261008130000` aplicadas/registradas, CI/E2E/Build y Vercel producción PASS.
 - **Invariante:** `appointments` continúa siendo la única agenda comercial y fuente de KPIs. Solo
   se enlaza con evidencia fuerte; cero o varios candidatos quedan sin match y nunca se inventan.
-- **Implementado y TESTED en rama:** matcher puro por ID externo o contacto+franja+closer; estados
+- **Implementado y TESTED:** matcher puro por ID externo o contacto+franja+closer; estados
   explícitos de mismatch/duplicado/privado; lectura paginada y acotada; escritura batch mediante
-  función `SECURITY INVOKER` solo `service_role`; toast de resultado. Dry-run real en Supabase
-  producción devolvió `dry_run_ok`. Focused 12/12, typecheck/lint, unit 1.487/1.487, métricas
-  788/788 y build de producción PASS. Falta confirmación humana inmediata para aplicar la migración
-  porque contiene cambios de permisos (`REVOKE`/`GRANT`); después regenerar tipos, repetir gate,
-  publicar PR y verificar Vercel.
+  función `SECURITY INVOKER` solo `service_role`; toast de resultado. Migración
+  `20261008143000_google_calendar_reconciliation` aplicada y registrada en Supabase producción tras
+  confirmación explícita: columna/constraint presentes; `anon=false`, `authenticated=false` y
+  `service_role=true` para EXECUTE. Tipos regenerados contra el esquema vivo. Focused 12/12,
+  Gate final tras aplicarla: format, lint, typecheck, focused 12/12, unit 1.489/1.489, métricas
+  788/788 y build limpio de producción PASS.
 - **Pendiente humano heredado:** producción tiene 0 cuentas Calendar autorizadas; la ingesta real
   seguirá sin poder marcarse VERIFIED hasta que un closer conecte y seleccione su calendario.
 
