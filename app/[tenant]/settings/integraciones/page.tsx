@@ -43,6 +43,7 @@ import { useTenant } from '@/lib/tenant-context'
 import { isAccountSelected, parseAccountIds, toggleAccountId } from '@/lib/meta/accounts'
 import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
+import { isGoogleOAuthClientId, isMetaAppId } from '@/lib/integrations/oauth-credentials'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { CATEGORY_LABELS, type IntegrationCategory } from '@/lib/integrations-catalog'
 import { ProviderWebhooks } from '@/components/integrations/WebhooksEntrantesPanel'
@@ -87,6 +88,16 @@ type StateEntry = {
   /** Guardado cifrado que la CONFIG_ENC_KEY actual NO puede leer (rotación previa o dato corrupto).
    *  El runtime lo descarta y todo consumidor ve "faltan credenciales": hay que volver a pegarlo. */
   indescifrable?: boolean
+}
+
+function currentValue(drafts: Record<string, string>, state: Record<string, StateEntry>, key: string): string {
+  return (drafts[key] ?? state[key]?.value ?? '').trim()
+}
+
+function hasUsableSecret(drafts: Record<string, string>, state: Record<string, StateEntry>, key: string): boolean {
+  if (drafts[key]?.trim()) return true
+  const stored = state[key]
+  return stored?.source !== 'none' && stored?.indescifrable !== true
 }
 type BackfillRow = {
   paymentId: string
@@ -393,7 +404,12 @@ function AdvancedField({
       ) : (
         <Input
           id={field.key}
+          name={`integration-${field.key}`}
           type={field.secret ? 'password' : 'text'}
+          autoComplete={field.secret ? 'new-password' : 'off'}
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
           value={value ?? ''}
           placeholder={
             field.secret && state?.source !== 'none'
@@ -1547,7 +1563,12 @@ export default function IntegracionesPage() {
                                   ) : (
                                     <Input
                                       id={f.key}
+                                      name={`integration-${f.key}`}
                                       type={f.secret ? 'password' : 'text'}
+                                      autoComplete={f.secret ? 'new-password' : 'off'}
+                                      data-1p-ignore
+                                      data-lpignore="true"
+                                      data-form-type="other"
                                       value={drafts[f.key] ?? ''}
                                       placeholder={
                                         f.secret && st?.source !== 'none'
@@ -2151,8 +2172,8 @@ export default function IntegracionesPage() {
                                 size="sm"
                                 disabled={
                                   savingId === g.id ||
-                                  !(drafts.YOUTUBE_CLIENT_ID || state.YOUTUBE_CLIENT_ID?.source !== 'none') ||
-                                  !(drafts.YOUTUBE_CLIENT_SECRET || state.YOUTUBE_CLIENT_SECRET?.source !== 'none')
+                                  !isGoogleOAuthClientId(currentValue(drafts, state, 'YOUTUBE_CLIENT_ID')) ||
+                                  !hasUsableSecret(drafts, state, 'YOUTUBE_CLIENT_SECRET')
                                 }
                                 onClick={async () => {
                                   const saved = await saveGroup(g, false)
@@ -2163,10 +2184,10 @@ export default function IntegracionesPage() {
                               >
                                 <ExternalLink className="mr-2 h-4 w-4" /> Conectar con Google
                               </Button>
-                              {!(drafts.YOUTUBE_CLIENT_ID || state.YOUTUBE_CLIENT_ID?.source !== 'none') ||
-                              !(drafts.YOUTUBE_CLIENT_SECRET || state.YOUTUBE_CLIENT_SECRET?.source !== 'none') ? (
+                              {!isGoogleOAuthClientId(currentValue(drafts, state, 'YOUTUBE_CLIENT_ID')) ||
+                              !hasUsableSecret(drafts, state, 'YOUTUBE_CLIENT_SECRET') ? (
                                 <p className="text-xs text-amber-400">
-                                  Guarda primero el Client ID y el Client Secret.
+                                  Guarda primero un Client ID válido de Google y su Client Secret.
                                 </p>
                               ) : null}
                             </div>
@@ -2184,8 +2205,8 @@ export default function IntegracionesPage() {
                                     size="sm"
                                     disabled={
                                       savingId === g.id ||
-                                      !(drafts.GOOGLE_CLIENT_ID || state.GOOGLE_CLIENT_ID?.source !== 'none') ||
-                                      !(drafts.GOOGLE_CLIENT_SECRET || state.GOOGLE_CLIENT_SECRET?.source !== 'none')
+                                      !isGoogleOAuthClientId(currentValue(drafts, state, 'GOOGLE_CLIENT_ID')) ||
+                                      !hasUsableSecret(drafts, state, 'GOOGLE_CLIENT_SECRET')
                                     }
                                     onClick={async () => {
                                       const saved = await saveGroup(g, false)
@@ -2199,6 +2220,12 @@ export default function IntegracionesPage() {
                                   </Button>
                                 ))}
                               </div>
+                              {!isGoogleOAuthClientId(currentValue(drafts, state, 'GOOGLE_CLIENT_ID')) ||
+                              !hasUsableSecret(drafts, state, 'GOOGLE_CLIENT_SECRET') ? (
+                                <p className="text-xs text-amber-400">
+                                  Guarda primero un Client ID válido de Google y su Client Secret.
+                                </p>
+                              ) : null}
                             </div>
                           )}
                           {(g.id === 'meta' || g.id === 'instagram') && (
@@ -2212,8 +2239,8 @@ export default function IntegracionesPage() {
                                 size="sm"
                                 disabled={
                                   savingId === g.id ||
-                                  !(drafts.META_APP_ID || state.META_APP_ID?.source !== 'none') ||
-                                  !(drafts.META_APP_SECRET || state.META_APP_SECRET?.source !== 'none')
+                                  !isMetaAppId(currentValue(drafts, state, 'META_APP_ID')) ||
+                                  !hasUsableSecret(drafts, state, 'META_APP_SECRET')
                                 }
                                 onClick={async () => {
                                   const saved = await saveGroup(g, false)
@@ -2223,10 +2250,10 @@ export default function IntegracionesPage() {
                                 <ExternalLink className="mr-2 h-4 w-4" />
                                 Conectar {g.id === 'meta' ? 'Meta Ads' : 'Instagram'}
                               </Button>
-                              {!(drafts.META_APP_ID || state.META_APP_ID?.source !== 'none') ||
-                              !(drafts.META_APP_SECRET || state.META_APP_SECRET?.source !== 'none') ? (
+                              {!isMetaAppId(currentValue(drafts, state, 'META_APP_ID')) ||
+                              !hasUsableSecret(drafts, state, 'META_APP_SECRET') ? (
                                 <p className="text-xs text-amber-400">
-                                  Configura primero la App ID y el App Secret en la ficha de Meta Ads.
+                                  Configura primero una App ID numérica válida y el App Secret en la ficha de Meta Ads.
                                 </p>
                               ) : null}
                             </div>

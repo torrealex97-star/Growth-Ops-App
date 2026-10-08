@@ -3,6 +3,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { metaAuthorizationUrl } from '@/lib/meta/oauth'
 import { signMetaState, type MetaOAuthSurface } from '@/lib/meta/oauth-state'
+import { isMetaAppId } from '@/lib/integrations/oauth-credentials'
 
 export const runtime = 'nodejs'
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const cfg = await getTenantConfigWithFallback(session.tenantId)
   const appId = String(cfg.META_APP_ID || '').trim()
   const appSecret = String(cfg.META_APP_SECRET || '').trim()
-  if (!appId || !appSecret) {
+  if (!isMetaAppId(appId) || !appSecret) {
     return NextResponse.json({ error: 'Guarda primero la App ID y el App Secret de Meta.' }, { status: 400 })
   }
   try {
