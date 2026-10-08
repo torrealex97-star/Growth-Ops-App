@@ -25,6 +25,7 @@ import { AppointmentDetail } from '@/components/appointments/AppointmentDetail'
 import { AgendasAnalysisView } from '@/components/appointments/AgendasAnalysisView'
 import { AgendasMetricsView } from '@/components/appointments/AgendasMetricsView'
 import { CalendarPopover, DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
+import { GoogleCalendarSettings } from '@/components/crm/GoogleCalendarSettings'
 import {
   Calendar,
   Search,
@@ -1241,10 +1242,13 @@ export default function AppointmentsPage() {
           <h1 className="text-2xl font-bold text-foreground">Agendas</h1>
           <p className="text-muted-foreground text-sm mt-1">Todas las citas y reuniones</p>
         </div>
-        <Button onClick={() => setShowNewModal(true)} className="bg-brand-600 hover:bg-brand-500">
-          <Plus className="w-4 h-4 mr-2" />
-          Nueva agenda
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <GoogleCalendarSettings tenant={tenant} />
+          <Button onClick={() => setShowNewModal(true)} className="bg-brand-600 hover:bg-brand-500">
+            <Plus className="w-4 h-4 mr-2" />
+            Nueva agenda
+          </Button>
+        </div>
       </div>
 
       {/* View switcher */}

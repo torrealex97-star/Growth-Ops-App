@@ -12,13 +12,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant } = await params
   const session = await requireTenant(tenant)
   if ('error' in session) return session.error
-  if (!session.isSuperAdmin && session.role !== 'admin' && session.role !== 'director') {
-    return NextResponse.json({ error: 'Requiere rol de admin o director' }, { status: 403 })
-  }
-
   const provider = new URL(req.url).searchParams.get('provider')
-  if (provider !== 'ga4' && provider !== 'gmail') {
-    return NextResponse.json({ error: "El proveedor debe ser 'ga4' o 'gmail'" }, { status: 400 })
+  if (provider !== 'ga4' && provider !== 'gmail' && provider !== 'calendar') {
+    return NextResponse.json({ error: "El proveedor debe ser 'ga4', 'gmail' o 'calendar'" }, { status: 400 })
+  }
+  // GA4/Gmail son conexiones del tenant y siguen siendo administrativas. Calendar es una conexión
+  // personal: cualquier miembro autenticado puede conectar LA SUYA, nunca la de otro usuario.
+  if (provider !== 'calendar' && !session.isSuperAdmin && session.role !== 'admin' && session.role !== 'director') {
+    return NextResponse.json({ error: 'Requiere rol de admin o director' }, { status: 403 })
   }
 
   const creds = await googleCredentials(session.tenantId)
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   }
 
   try {
-    const state = signState({ tenant, provider })
+    const state = signState({ tenant, provider, userId: session.userId })
     return NextResponse.redirect(authorizationUrl({ clientId: creds.clientId, scopes: SCOPES[provider], state }))
   } catch (e) {
     // Sin CONFIG_ENC_KEY no se puede firmar el state, y un state sin firma sería precisamente el
