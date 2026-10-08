@@ -21,3 +21,23 @@ export function enlaceDeColaborador(baseUrl: string, code: string): string {
     return `${baseUrl}${sep}utm_content=${encodeURIComponent(code)}&ref=${encodeURIComponent(code)}`
   }
 }
+
+/**
+ * Personaliza una plantilla para la persona que la comparte.
+ *
+ * Setters, closers y cold callers se atribuyen mediante `utm_term`. Los
+ * colaboradores conservan `utm_content` y la señal estructurada `ref` que el
+ * backend resuelve contra `collaborator_profiles`. Centralizarlo evita que el
+ * panel de Colaboradores y Recursos generen enlaces distintos.
+ */
+export function enlaceDeRol(baseUrl: string, role: string, code: string): string {
+  if (role === 'affiliate') return enlaceDeColaborador(baseUrl, code)
+  try {
+    const url = new URL(baseUrl)
+    url.searchParams.set('utm_term', code)
+    return url.toString()
+  } catch {
+    const sep = baseUrl.includes('?') ? '&' : '?'
+    return `${baseUrl}${sep}utm_term=${encodeURIComponent(code)}`
+  }
+}

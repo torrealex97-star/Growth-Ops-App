@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 import { PERMISSIONS, ROLE_LABELS, type AppRole } from '@/lib/auth/permissions'
 import type { LinkTemplate, ResourceLink, ResourceLinkDivision } from '@/lib/types/database'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
+import { enlaceDeRol } from '@/lib/tracking/enlaces'
 
 type CurrentUser = {
   id: string
@@ -44,25 +45,6 @@ const LINK_ROLES: AppRole[] = ['setter', 'closer', 'cold_caller', 'affiliate']
 const RESOURCE_ROLES: AppRole[] = ['admin', 'director', 'manager', 'setter', 'closer', 'cold_caller', 'affiliate']
 
 const NO_DIVISION = 'none' // valor del Select para "Sin división"
-
-function buildTrackedUrl(baseUrl: string, role: AppRole, code: string): string {
-  const param = role === 'affiliate' ? 'utm_content' : 'utm_term'
-  try {
-    const url = new URL(baseUrl)
-    url.searchParams.set(param, code)
-    // COLABORADORES: además del UTM (marketing/reporting), el enlace lleva
-    // ?ref=<código> — el identificador estructurado que los webhooks resuelven
-    // server-side al UUID del perfil y guardan como FK (contact_attributions.
-    // collaborator_id). El UTM sigue; el dinero ya no depende de él.
-    if (role === 'affiliate') url.searchParams.set('ref', code)
-    return url.toString()
-  } catch {
-    // base_url puede no ser una URL absoluta válida; hacemos append manual
-    const separator = baseUrl.includes('?') ? '&' : '?'
-    const refPart = role === 'affiliate' ? `&ref=${encodeURIComponent(code)}` : ''
-    return `${baseUrl}${separator}${param}=${encodeURIComponent(code)}${refPart}`
-  }
-}
 
 export default function EnlacesPage() {
   const tenant = useTenant()
@@ -241,13 +223,13 @@ export default function EnlacesPage() {
       return affiliateCampaigns.map((c) => ({
         id: c.id,
         name: c.name,
-        url: buildTrackedUrl(c.base_url, user.role, userCode),
+        url: enlaceDeRol(c.base_url, user.role, userCode),
       }))
     }
     return templates.map((t) => ({
       id: t.id,
       name: t.name,
-      url: buildTrackedUrl(t.base_url, user.role, userCode),
+      url: enlaceDeRol(t.base_url, user.role, userCode),
     }))
   }, [templates, affiliateCampaigns, user, userCode])
 
