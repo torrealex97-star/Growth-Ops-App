@@ -5,6 +5,7 @@ import { googleCredentials } from '@/lib/google/oauth'
 import { accessTokenFromRefresh } from '@/lib/google/ga4'
 import { listGoogleCalendars, type GoogleCalendarListItem } from '@/lib/google/calendar'
 import { syncGoogleCalendars } from '@/lib/google/calendar-sync'
+import { reconcileGoogleCalendarEvents } from '@/lib/google/calendar-reconciliation'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
@@ -179,15 +180,29 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ te
         job: `google-calendar:${session.userId}`,
         trigger: 'manual',
       },
-      () =>
-        syncGoogleCalendars({
+      async () => {
+        const sync = await syncGoogleCalendars({
           sb,
           tenantId: session.tenantId,
           userId: session.userId,
           ownerEmail: connection.google_email,
           encryptedRefreshToken: connection.refresh_token,
           calendars: calendars.data,
-        }),
+        })
+        const fingerprintSecret = process.env.CONFIG_ENC_KEY
+        if (!fingerprintSecret) throw new Error('Falta CONFIG_ENC_KEY para conciliar identidades protegidas.')
+        const reconciliation = await reconcileGoogleCalendarEvents({
+          sb,
+          tenantId: session.tenantId,
+          userId: session.userId,
+          fingerprintSecret,
+        })
+        return {
+          ...sync,
+          reconciliation,
+          failures: [...sync.failures, ...reconciliation.failures.map((failure) => `reconciliation:${failure}`)],
+        }
+      },
       (sync) => ({
         rowsWritten: sync.eventsWritten,
         failures: sync.failures,
@@ -195,6 +210,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ te
           calendarios: sync.calendars,
           completas: sync.fullSyncs,
           incrementales: sync.incrementalSyncs,
+          conciliados: sync.reconciliation.matched,
+          pendientes: sync.reconciliation.unresolved,
         },
       })
     )

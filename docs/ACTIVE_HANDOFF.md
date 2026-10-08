@@ -1,19 +1,21 @@
-# Google Calendar por closer — FASE 2 EN CURSO, 8-oct-2026 (Codex)
+# Google Calendar por closer — FASE 3 EN CURSO, 8-oct-2026 (Codex)
 
-- **Rama única:** `codex/google-calendar-closer-phase2`. No abrir otra rama que toque Calendar,
-  CRM › Agendas ni las tablas `google_connected_calendars`/eventos externos hasta cerrar esta fase.
-- **Fase 1 cerrada:** PR #404 fusionada (`3e39ce7c`), migración `20261008122259` aplicada y
-  registrada en producción, CI/E2E/Build y despliegue Vercel PASS.
-- **Reclamación Fase 2:** persistencia minimizada de eventos externos, initial sync paginado,
-  `syncToken`, recuperación segura ante token inválido, cancelaciones y ejecución manual
-  idempotente. `appointments` continúa siendo la única agenda comercial y fuente de KPIs.
-- **Implementado y TESTED:** migración `20261008130000` aplicada y registrada en producción tras
-  dry-run; tabla externa con RLS solo lectura, HMAC de asistentes, paginación Google, full sync
-  90d/180d, incremental, recuperación de HTTP 410, cerrojo por usuario y botón manual. Quality
-  completo (1.481 + 788 tests) y build limpio PASS. Producción tiene todavía 0 cuentas Calendar
-  autorizadas, por lo que la ingesta real queda como USER ACTION REQUIRED, no VERIFIED.
-- **Fuera de este bloque:** matching automático y conciliación manual (Fases 3–4), notificaciones,
-  dashboards y write-back. Ningún evento importado se convertirá todavía en contacto o agenda.
+- **Rama única:** `codex/google-calendar-reconciliation`. Reclama el matching Calendar↔CRM,
+  su persistencia, endpoint de conciliación y tests. No tocar UI general de Agendas fuera de lo
+  imprescindible ni crear agendas/contactos desde Google.
+- **Fases 1–2 cerradas:** PR #404 (`3e39ce7c`) y PR #405 (`20e2a1f8`) fusionadas, migraciones
+  `20261008122259` y `20261008130000` aplicadas/registradas, CI/E2E/Build y Vercel producción PASS.
+- **Invariante:** `appointments` continúa siendo la única agenda comercial y fuente de KPIs. Solo
+  se enlaza con evidencia fuerte; cero o varios candidatos quedan sin match y nunca se inventan.
+- **Implementado y TESTED en rama:** matcher puro por ID externo o contacto+franja+closer; estados
+  explícitos de mismatch/duplicado/privado; lectura paginada y acotada; escritura batch mediante
+  función `SECURITY INVOKER` solo `service_role`; toast de resultado. Dry-run real en Supabase
+  producción devolvió `dry_run_ok`. Focused 12/12, typecheck/lint, unit 1.487/1.487, métricas
+  788/788 y build de producción PASS. Falta confirmación humana inmediata para aplicar la migración
+  porque contiene cambios de permisos (`REVOKE`/`GRANT`); después regenerar tipos, repetir gate,
+  publicar PR y verificar Vercel.
+- **Pendiente humano heredado:** producción tiene 0 cuentas Calendar autorizadas; la ingesta real
+  seguirá sin poder marcarse VERIFIED hasta que un closer conecte y seleccione su calendario.
 
 ## Importación segura de plantillas de contrato — CERRADO EN PR #402, 7-oct-2026 (Codex)
 
