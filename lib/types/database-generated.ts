@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-08T11:01:45.379Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-08T11:24:20.379Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -2935,6 +2935,77 @@ export type EsquemaPublico = {
         updated_at: string | undefined
       }
     }
+    GoogleCalendarEvents: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        connected_calendar_id: string | null
+        owner_user_id: string | null
+        provider_event_id: string | null
+        ical_uid: string | null
+        recurring_event_id: string | null
+        original_start_at: string | null
+        event_start_at: string | null
+        event_end_at: string | null
+        time_zone: string | null
+        status: string | null
+        visibility: string | null
+        transparency: string | null
+        attendee_fingerprints: string | null
+        has_external_attendee: boolean | null
+        is_all_day: boolean | null
+        external_updated_at: string | null
+        last_seen_at: string | null
+        created_at: string | null
+        updated_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        connected_calendar_id: string | null | undefined
+        owner_user_id: string | null | undefined
+        provider_event_id: string | null | undefined
+        ical_uid: string | null | undefined
+        recurring_event_id: string | null | undefined
+        original_start_at: string | null | undefined
+        event_start_at: string | null | undefined
+        event_end_at: string | null | undefined
+        time_zone: string | null | undefined
+        status: string | null | undefined
+        visibility: string | null | undefined
+        transparency: string | null | undefined
+        attendee_fingerprints: string | null | undefined
+        has_external_attendee: boolean | null | undefined
+        is_all_day: boolean | null | undefined
+        external_updated_at: string | null | undefined
+        last_seen_at: string | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        connected_calendar_id: string | undefined
+        owner_user_id: string | undefined
+        provider_event_id: string | undefined
+        ical_uid: string | undefined
+        recurring_event_id: string | undefined
+        original_start_at: string | undefined
+        event_start_at: string | undefined
+        event_end_at: string | undefined
+        time_zone: string | undefined
+        status: string | undefined
+        visibility: string | undefined
+        transparency: string | undefined
+        attendee_fingerprints: string | undefined
+        has_external_attendee: boolean | undefined
+        is_all_day: boolean | undefined
+        external_updated_at: string | undefined
+        last_seen_at: string | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
+      }
+    }
     GoogleConnectedCalendars: {
       Row: {
         id: string | null
@@ -2950,6 +3021,9 @@ export type EsquemaPublico = {
         last_error_code: string | null
         created_at: string | null
         updated_at: string | null
+        sync_token: string | null
+        last_full_sync_at: string | null
+        last_incremental_sync_at: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -2965,6 +3039,9 @@ export type EsquemaPublico = {
         last_error_code: string | null | undefined
         created_at: string | null | undefined
         updated_at: string | null | undefined
+        sync_token: string | null | undefined
+        last_full_sync_at: string | null | undefined
+        last_incremental_sync_at: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -2980,6 +3057,9 @@ export type EsquemaPublico = {
         last_error_code: string | undefined
         created_at: string | undefined
         updated_at: string | undefined
+        sync_token: string | undefined
+        last_full_sync_at: string | undefined
+        last_incremental_sync_at: string | undefined
       }
     }
     GoogleOauthConnections: {
