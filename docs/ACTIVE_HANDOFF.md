@@ -1,4 +1,4 @@
-# LISTO PARA PR · equipo comisionable visible en Colaboradores (Codex, 8-oct-2026)
+# CERRADO · equipo comisionable visible en Colaboradores (PR #409, 8-oct-2026)
 
 - **Rama única:** `codex/commissionable-team-panel`.
 - **Implementado:** el panel `marketing/afiliados/afiliados` incorpora un directorio de todas las
@@ -11,6 +11,9 @@
 - **TESTED local aislado:** formato PASS; lint PASS (solo avisos heredados); typecheck PASS; regresión
   focal 4/4; unitarias completas 1.499/1.499, incluidas las pruebas de esquema vivo; métricas 788/788;
   build limpio de producción PASS. `knip` conserva únicamente deuda heredada fuera de alcance.
+- **Fusionado y desplegado:** squash `8a8c5e9f`; Quality, gitleaks, Build, Smoke E2E, Release gate y
+  Vercel Preview PASS. Producción `dpl_G7qmie7HKQQsi8r4YFJUwu3aVYxv` READY y
+  `app.scalixsystems.com` apunta a esa versión; la ruta protegida redirige correctamente a login.
 
 # CERRADO · hardening de credenciales OAuth en Integraciones (PR #408, 8-oct-2026)
 
