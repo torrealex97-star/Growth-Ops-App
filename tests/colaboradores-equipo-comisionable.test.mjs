@@ -43,3 +43,18 @@ test('el panel muestra a todo el equipo comisionable y reutiliza las plantillas 
   assert.match(page, /plantilla\.applies_to\?\.includes\(role\)/)
   assert.match(page, /Asignar una campaña/)
 })
+
+test('cada persona abre un perfil financiero profundo y deja el enlace como acción secundaria', () => {
+  const collaborators = read('app/[tenant]/marketing/afiliados/afiliados/page.tsx')
+  const commissions = read('app/[tenant]/comisiones/page.tsx')
+  const invoices = read('components/commissions/CommissionInvoicePanel.tsx')
+
+  assert.match(collaborators, /comisiones\?member=\$\{encodeURIComponent\(persona\.id\)\}/)
+  assert.match(collaborators, /Abrir perfil/)
+  assert.match(commissions, /searchParams\.get\('member'\)/)
+  assert.match(commissions, /Perfil de comisiones/)
+  assert.match(commissions, /focusUserId=\{canApprove && filterMember !== 'all' \? filterMember : undefined\}/)
+  assert.match(invoices, /visibleTeamInvoices/)
+  assert.match(invoices, /openSignedStorageFile\('facturas'/)
+  assert.doesNotMatch(invoices, /href=\{(?:myInvoiceForPeriod|inv)\.invoice_url\}/)
+})

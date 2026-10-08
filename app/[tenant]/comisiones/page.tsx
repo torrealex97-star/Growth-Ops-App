@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { CommissionsTable } from '@/components/commissions/CommissionsTable'
 import { CommissionInvoicePanel } from '@/components/commissions/CommissionInvoicePanel'
@@ -13,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ExternalLink, X, Download, Wrench, Loader2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, X, Download, Wrench, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
@@ -81,6 +82,9 @@ function downloadCSV(filename: string, headers: string[], rows: (string | number
 export default function CommissionsPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
   const sesion = useSesion()
   const [commissions, setCommissions] = useState<CommissionDashboardRow[]>([])
@@ -104,6 +108,22 @@ export default function CommissionsPage() {
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState<string>('')
   const [customTo, setCustomTo] = useState<string>('')
+
+  // Deep-link del directorio de Colaboradores. El parámetro solo acota datos que la página ya
+  // está autorizada a leer; nunca concede acceso a otro usuario ni altera el scope RLS.
+  useEffect(() => {
+    const member = searchParams.get('member')
+    setFilterMember(member || 'all')
+  }, [searchParams])
+
+  const setMemberFilter = (memberId: string) => {
+    setFilterMember(memberId)
+    const next = new URLSearchParams(searchParams.toString())
+    if (memberId === 'all') next.delete('member')
+    else next.set('member', memberId)
+    const query = next.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
 
   const fetchCommissions = async () => {
     const supabase = createClient()
@@ -343,7 +363,7 @@ export default function CommissionsPage() {
     setFilterMonth('all')
     setFilterFrom('')
     setFilterTo('')
-    setFilterMember('all')
+    setMemberFilter('all')
     setFilterType('all')
     setPeriodPreset('all')
     setCustomFrom('')
@@ -428,13 +448,30 @@ export default function CommissionsPage() {
   const handleApprove = (ids: string[]) => handleBatchStatus('approve', ids)
   const handleLiquidate = (ids: string[]) => handleBatchStatus('liquidate', ids)
 
+  const selectedMember = filterMember === 'all' ? null : (members.find((member) => member.id === filterMember) ?? null)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Comisiones</h1>
+          {selectedMember && canApprove && (
+            <Link
+              href={`/${tenant}/marketing/afiliados/afiliados`}
+              className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              Volver al equipo
+            </Link>
+          )}
+          <h1 className="text-2xl font-bold text-foreground">
+            {selectedMember && canApprove ? `Perfil de comisiones · ${selectedMember.full_name}` : 'Comisiones'}
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {canApprove ? 'Gestion de comisiones del equipo' : 'Tus comisiones'}
+            {selectedMember && canApprove
+              ? 'Ventas, cobros, liquidaciones, ajustes y facturas de esta persona.'
+              : canApprove
+                ? 'Gestión de comisiones del equipo'
+                : 'Tus comisiones'}
           </p>
         </div>
         {canApprove && (
@@ -542,7 +579,7 @@ export default function CommissionsPage() {
           {canApprove && (
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Colaborador / miembro</Label>
-              <Select value={filterMember} onValueChange={setFilterMember}>
+              <Select value={filterMember} onValueChange={setMemberFilter}>
                 <SelectTrigger className="bg-muted border-border h-9">
                   <SelectValue />
                 </SelectTrigger>
@@ -600,7 +637,12 @@ export default function CommissionsPage() {
 
       {/* Facturas debajo del control operativo: son evidencia del pago, no el punto de entrada. */}
       {currentUserId && (
-        <CommissionInvoicePanel currentUserId={currentUserId} currentUserRole={currentUserRole} members={members} />
+        <CommissionInvoicePanel
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
+          members={members}
+          focusUserId={canApprove && filterMember !== 'all' ? filterMember : undefined}
+        />
       )}
 
       <Tabs defaultValue="pending">

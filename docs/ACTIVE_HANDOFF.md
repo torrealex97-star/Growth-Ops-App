@@ -1,3 +1,15 @@
+# EN CURSO · perfiles financieros de equipo comisionable (9-oct-2026, Codex)
+
+- **Rama única:** `codex/commission-payee-profiles`.
+- **Alcance reclamado:** directorio `marketing/afiliados/afiliados`, deep-link por miembro hacia
+  `comisiones`, filtro inicial por persona, contexto de perfil y facturas del miembro seleccionado.
+  No cambia fórmulas, porcentajes, ledger, RLS, campañas ni datos de producción.
+- **Objetivo:** que la persona —setter, closer o colaborador— sea el punto de entrada. El enlace de
+  tracking queda como acción secundaria; el perfil financiero reúne ventas, cash, estados de
+  liquidación, ajustes auditables y facturas reutilizando las fuentes canónicas existentes.
+- **Riesgo:** HIGH por tratarse de presentación y filtrado de datos financieros; cualquier enlace
+  debe conservar el tenant y toda lectura mantiene el alcance que ya aplica la página de Comisiones.
+
 # CERRADO EN RAMA · observabilidad CSP en modo solo informe (9-oct-2026, Codex)
 
 - **Rama única:** `codex/csp-reporting`.

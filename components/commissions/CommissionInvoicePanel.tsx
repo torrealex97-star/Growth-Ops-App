@@ -10,6 +10,7 @@ import { FileText, Upload, Loader2, CheckCircle2, ExternalLink } from 'lucide-re
 import { toast } from 'sonner'
 import { useTenantId } from '@/lib/tenant-context'
 import { formatCurrency } from '@/lib/utils'
+import { openSignedStorageFile } from '@/lib/storage/signed-url'
 
 type SimpleMember = { id: string; full_name: string }
 
@@ -50,10 +51,12 @@ export function CommissionInvoicePanel({
   currentUserId,
   currentUserRole,
   members,
+  focusUserId,
 }: {
   currentUserId: string
   currentUserRole: string
   members: SimpleMember[]
+  focusUserId?: string
 }) {
   const tenantId = useTenantId()
   const isAdmin = ['admin', 'director'].includes(currentUserRole)
@@ -96,6 +99,14 @@ export function CommissionInvoicePanel({
   const myInvoiceForPeriod = invoices.find(
     (inv) => inv.user_id === currentUserId && inv.period_month.slice(0, 7) === period.slice(0, 7)
   )
+  const focusedMember = focusUserId ? (members.find((member) => member.id === focusUserId) ?? null) : null
+  const visibleTeamInvoices = focusUserId ? invoices.filter((invoice) => invoice.user_id === focusUserId) : invoices
+  const showOwnUploader = !isAdmin || !focusUserId || focusUserId === currentUserId
+
+  const openInvoice = (path: string) =>
+    openSignedStorageFile('facturas', path, (message) =>
+      toast.error('No se pudo abrir la factura', { description: message })
+    )
 
   const handleUpload = async (file: File) => {
     if (!file) return
@@ -157,100 +168,108 @@ export function CommissionInvoicePanel({
   return (
     <div className="space-y-4">
       {/* Panel del comercial: subir la factura del mes */}
-      <div className="rounded-xl border border-border bg-card/50 p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-brand-400" />
-          <h3 className="text-sm font-semibold text-foreground">Mi factura de comisiones</h3>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Adjunta tu factura del mes cerrado. Solo la ve el departamento financiero; el resto del equipo no.
-        </p>
+      {showOwnUploader && (
+        <div className="rounded-xl border border-border bg-card/50 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-brand-400" />
+            <h3 className="text-sm font-semibold text-foreground">Mi factura de comisiones</h3>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Adjunta tu factura del mes cerrado. Solo la ve el departamento financiero; el resto del equipo no.
+          </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="space-y-1">
-            <Label className="text-muted-foreground text-xs">Mes facturado</Label>
-            <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="bg-muted border-border">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-muted-foreground text-xs">Importe (€) — opcional</Label>
-            <Input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="bg-muted border-border"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-muted-foreground text-xs">Archivo (PDF/imagen)</Label>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/pdf,image/*"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) handleUpload(f)
-              }}
-              className="hidden"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={uploading}
-              onClick={() => fileRef.current?.click()}
-              className="w-full"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Subiendo…
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Adjuntar factura
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {myInvoiceForPeriod && (
-          <div className="flex items-center gap-2 text-sm text-emerald-400">
-            <CheckCircle2 className="w-4 h-4" />
-            Factura de {monthLabel(myInvoiceForPeriod.period_month)} enviada
-            {myInvoiceForPeriod.status === 'pagada' && ' · pagada'}
-            {myInvoiceForPeriod.invoice_url && (
-              <a
-                href={myInvoiceForPeriod.invoice_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-brand-400 hover:text-brand-300 ml-2"
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-muted-foreground text-xs">Mes facturado</Label>
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger className="bg-muted border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-muted-foreground text-xs">Importe (€) — opcional</Label>
+              <Input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="bg-muted border-border"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-muted-foreground text-xs">Archivo (PDF/imagen)</Label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/pdf,image/*"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) handleUpload(f)
+                }}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+                className="w-full"
               >
-                Ver <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Subiendo…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Adjuntar factura
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
+
+          {myInvoiceForPeriod && (
+            <div className="flex items-center gap-2 text-sm text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+              Factura de {monthLabel(myInvoiceForPeriod.period_month)} enviada
+              {myInvoiceForPeriod.status === 'pagada' && ' · pagada'}
+              {myInvoiceForPeriod.invoice_url && (
+                <button
+                  type="button"
+                  onClick={() => void openInvoice(myInvoiceForPeriod.invoice_url!)}
+                  className="inline-flex items-center gap-1 text-brand-400 hover:text-brand-300 ml-2"
+                >
+                  Ver <ExternalLink className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Panel admin/director: facturas de todo el equipo */}
       {isAdmin && (
         <div className="rounded-xl border border-border bg-card/50 p-5 space-y-3">
-          <h3 className="text-sm font-semibold text-foreground">Facturas de comisiones del equipo</h3>
-          {invoices.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aún no hay facturas subidas.</p>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              {focusedMember ? `Facturas de ${focusedMember.full_name}` : 'Facturas de comisiones del equipo'}
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">Evidencia documental por periodo y estado de pago.</p>
+          </div>
+          {visibleTeamInvoices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {focusedMember ? 'Esta persona aún no ha subido facturas.' : 'Aún no hay facturas subidas.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -265,7 +284,7 @@ export function CommissionInvoicePanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map((inv) => (
+                  {visibleTeamInvoices.map((inv) => (
                     <tr key={inv.id} className="border-b border-border/60">
                       <td className="py-2 pr-3 text-foreground">{memberName(inv.user_id)}</td>
                       <td className="py-2 pr-3 text-foreground">{monthLabel(inv.period_month)}</td>
@@ -277,14 +296,13 @@ export function CommissionInvoicePanel({
                       </td>
                       <td className="py-2 pr-3">
                         {inv.invoice_url ? (
-                          <a
-                            href={inv.invoice_url}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => void openInvoice(inv.invoice_url!)}
                             className="inline-flex items-center gap-1 text-brand-400 hover:text-brand-300"
                           >
                             Ver <ExternalLink className="w-3 h-3" />
-                          </a>
+                          </button>
                         ) : (
                           '—'
                         )}
