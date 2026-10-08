@@ -1,5 +1,10 @@
 # Auditoría del módulo VSL / Video — Growth Operator OS
 
+> **Histórico.** La auditoría vigente para VSL Intelligence y la matriz de paridad están en
+> [`VSL_INTELLIGENCE_DISCOVERY.md`](./VSL_INTELLIGENCE_DISCOVERY.md). Este archivo conserva las
+> decisiones y verificaciones de las fases V0–V2 originales; no debe usarse como descripción del
+> modelo analítico actual.
+
 > 2026-09-22 · Auditoría "audit-first" del módulo VSL existente antes de tocar código, según el
 > contrato del producto (fases V0→V6, filosofía PRESERVAR→MEDIR→TESTEAR→CORREGIR→SIMPLIFICAR→FORTALECER→EXTENDER).
 > Línea base verificada: suite VSL existente 11/11 en verde sobre main `4c2cfa7`.
@@ -132,4 +137,4 @@ completados). No se toca hasta que lo decidas.
 
 ---
 
-*Auditoría generada el 22-sep-2026; cada fase sale por PR con preservation gate (OLD BEHAVIOR = PASS).*
+_Auditoría generada el 22-sep-2026; cada fase sale por PR con preservation gate (OLD BEHAVIOR = PASS)._

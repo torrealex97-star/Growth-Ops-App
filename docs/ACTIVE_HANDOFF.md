@@ -1,3 +1,16 @@
+# EN CURSO · VSL Intelligence PR-0 discovery y matriz de paridad (9-oct-2026, Codex)
+
+- **Rama única:** `codex/vsl-intelligence-discovery`.
+- **Alcance reclamado:** auditoría y documentación de `components/vsl`, `lib/vsl`, rutas
+  `app/api/vsl`, APIs tenant de VSL, embeds, migraciones y pruebas VSL. PR-0 no modifica esquema,
+  métricas, datos ni reproducción.
+- **Objetivo:** fijar con evidencia el reproductor real, contrato actual, fórmulas, huecos,
+  limitaciones históricas y plan PR-1→PR-10 antes de ampliar telemetría.
+- **Hallazgo prioritario:** `slug` es único por tenant pero los endpoints públicos resuelven solo por
+  slug; PR-1 debe hacer tenant explícito en embed/session antes de extender tracking.
+- **Siguiente exacto:** cerrar matriz de paridad, Quality Gate documental, PR/merge; después abrir
+  PR-1 desde `main` para aislamiento público + versiones/playbacks/eventos/intervalos.
+
 # CERRADO EN RAMA · perfiles financieros de equipo comisionable (9-oct-2026, Codex)
 
 - **Rama única:** `codex/commission-payee-profiles`.
