@@ -1,5 +1,18 @@
 # Diagnóstico: por qué Meta nunca ha sincronizado
 
+## Calendly histórico: lotes reanudables (9-oct-2026)
+
+El histórico de Calendly no cabe honestamente en una sola función Hobby de 60 segundos: por cada
+evento hay que leer invitees y realizar escrituras idempotentes. La implementación anterior recorría
+la cuenta completa dentro de una petición, terminaba en 504 y no dejaba un `integration_sync_run` que
+explicara el fallo.
+
+La ruta manual procesa ahora una página de 20 eventos, devuelve el cursor opaco de Calendly y la UI
+continúa automáticamente. Guarda el cursor tras cada lote durante 30 minutos para poder reanudar una
+recarga o caída de red; cada lote queda en `integration_sync_runs` como `calendly-historico`. No se
+aumenta `maxDuration`, no se añade cron y no se duplica dato: los upserts siguen acotados por tenant y
+external ID. Los huecos históricos sin tracking no se rellenan con atribución inventada.
+
 Fecha: 2026-09-13. Todo lo de aquí está **verificado contra el proyecto real**, no deducido.
 
 ## El síntoma

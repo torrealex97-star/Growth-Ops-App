@@ -62,6 +62,26 @@ test('un fallo de atribución NO tumba la sync (la cita vale más que su procede
   assert.match(ghl, /catch \(e\) \{\s*\n\s*console\.warn\('\[atribucion\]\[ghl\]/)
 })
 
+test('Calendly histórico se pagina en lotes reanudables por debajo del timeout de Vercel', () => {
+  const sync = leer('lib/integrations/citas-sync.ts')
+  const route = leer('app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts')
+  const page = leer('app/[tenant]/settings/integraciones/page.tsx')
+  const calendly = sync.slice(sync.indexOf('export async function syncCalendly'))
+
+  assert.match(calendly, /opts\.pageToken \?\? ''/)
+  assert.match(calendly, /opts\.maxPages \?\? 100/)
+  assert.match(calendly, /opts\.pageSize \?\? 100/)
+  assert.match(calendly, /nextPageToken: pageToken \|\| null/)
+
+  assert.match(route, /job: 'calendly-historico'/)
+  assert.match(route, /maxPages: 1, pageSize: 20/)
+  assert.match(route, /recordSyncRun\(/, 'cada lote deja historial operativo')
+
+  assert.match(page, /growth-ops:history:/, 'la UI conserva el cursor tras una pérdida de red')
+  assert.match(page, /j\.nextPageToken/)
+  assert.match(page, /Date\.now\(\) - saved\.savedAt < 30 \* 60 \* 1000/)
+})
+
 test('la semántica first/last vive en el módulo canónico, no duplicada en la sync', () => {
   // El helper delega en registrarToque: relleno de huecos, first-wins y toque antiguo que no
   // se presenta como último — una sola implementación para webhook y sync (las comisiones y
