@@ -69,3 +69,15 @@ test('setters y closers pueden compartir una campaña activa sin exigir una plan
   assert.match(collaborators, /url: enlaceDeRol\(campana\.base_url, role, code\)/)
   assert.match(collaborators, /candidate\.url === enlace\.url/)
 })
+
+test('el centro de comisiones permite abrir cada persona y ofrece autoservicio al miembro', () => {
+  const page = read('app/[tenant]/comisiones/page.tsx')
+  const control = read('components/commissions/CommissionControlCenter.tsx')
+
+  assert.match(control, /comisiones\?member=\$\{person\.userId\}/)
+  assert.match(control, /Abrir perfil de comisiones de/)
+  assert.match(page, /ownCommissionableMember/)
+  assert.match(page, /Tu enlace personal de atribución/)
+  assert.match(page, /affiliate_campaign_members/)
+  assert.match(page, /Enlace personal copiado/)
+})
