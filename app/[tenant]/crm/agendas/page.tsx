@@ -69,6 +69,8 @@ import {
   getAppointmentCategory,
   isNoShow,
 } from '@/lib/appointments/status'
+import { appointmentLeadScore } from '@/lib/appointments/lead-score'
+import type { LeadScore } from '@/lib/metrics/cualificacion'
 
 const cls =
   'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'
@@ -126,6 +128,13 @@ function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
+const LEAD_SCORE_DOT: Record<LeadScore['nivel'], string> = {
+  alto: 'bg-sky-400',
+  medio: 'bg-amber-400',
+  bajo: 'bg-red-400',
+  sin_datos: 'bg-muted-foreground/50',
+}
+
 export default function AppointmentsPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
@@ -155,6 +164,15 @@ export default function AppointmentsPage() {
   const [dayCloserIds, setDayCloserIds] = useState<string[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [calendarUserFilter, setCalendarUserFilter] = useState<string>('all')
+
+  // En móvil la semana completa obliga a hacer scroll horizontal a ciegas. Se abre hoy en modo día;
+  // escritorio conserva la semana actual como vista operativa por defecto.
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      setCalMode('day')
+      setWeekStart(startOfDay(new Date()))
+    }
+  }, [])
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -1609,7 +1627,7 @@ export default function AppointmentsPage() {
 
           {/* Grid semanal / diario */}
           <div className="rounded-lg border border-border overflow-x-auto">
-            <div style={{ minWidth: calMode === 'day' ? 60 + calColumns.length * 220 : 1400 }}>
+            <div style={{ minWidth: calMode === 'day' ? 60 + calColumns.length * 220 : 980 }}>
               {/* Cabecera: días (semana) o closers (día) */}
               <div
                 className="grid border-b border-border"
@@ -1719,6 +1737,7 @@ export default function AppointmentsPage() {
 
                       {dayAppointments.map(({ appt, top, height, colIndex, colCount }) => {
                         const category = getAppointmentCategory(appt.status, hasPurchased(appt))
+                        const leadScore = appointmentLeadScore(appt)
                         const isCancelled = category === 'cancelada'
                         const draggable = !isCancelled && canDragAppointment(appt)
                         // Contenido adaptativo a la altura real del bloque: el formato completo ocupa
@@ -1743,7 +1762,7 @@ export default function AppointmentsPage() {
                               setSelectedAppointment(appt)
                               setSheetOpen(true)
                             }}
-                            title={`${new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(appt.appointment_datetime))} · ${appt.contacts?.full_name || '—'} · Closer: ${appt.closer?.full_name || 'Sin closer'} · ${CATEGORY_LABELS[category]}`}
+                            title={`${new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(appt.appointment_datetime))} · ${appt.contacts?.full_name || '—'} · Closer: ${appt.closer?.full_name || 'Sin closer'} · ${CATEGORY_LABELS[category]} · Lead score: ${leadScore.puntuacion === null ? 'sin datos' : `${leadScore.puntuacion}/100`}`}
                             style={{
                               top: `${top}px`,
                               height: `${height}px`,
@@ -1766,10 +1785,16 @@ export default function AppointmentsPage() {
                                 )}{' '}
                                 {appt.contacts?.full_name || '—'}
                                 {tier === 'xs' && (
-                                  <span
-                                    className={`inline-block w-2 h-2 rounded-full shrink-0 ml-auto ${closerColorClass(appt.closer_id)}`}
-                                    title={appt.closer?.full_name || 'Sin closer'}
-                                  />
+                                  <span className="ml-auto flex shrink-0 items-center gap-1">
+                                    <span
+                                      className={`inline-block h-2 w-2 rounded-full ${LEAD_SCORE_DOT[leadScore.nivel]}`}
+                                      title={`Lead score: ${leadScore.puntuacion ?? 'sin datos'}`}
+                                    />
+                                    <span
+                                      className={`inline-block h-2 w-2 rounded-full ${closerColorClass(appt.closer_id)}`}
+                                      title={appt.closer?.full_name || 'Sin closer'}
+                                    />
+                                  </span>
                                 )}
                               </p>
                             ) : null}
@@ -1779,6 +1804,10 @@ export default function AppointmentsPage() {
                                   className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${closerColorClass(appt.closer_id)}`}
                                 />
                                 {appt.closer?.full_name || 'Sin closer'}
+                                <span
+                                  className={`ml-auto inline-block h-1.5 w-1.5 shrink-0 rounded-full ${LEAD_SCORE_DOT[leadScore.nivel]}`}
+                                  title={`Lead score: ${leadScore.puntuacion ?? 'sin datos'}`}
+                                />
                               </p>
                             ) : null}
                             {tier === 'full' ? (

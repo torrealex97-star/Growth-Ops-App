@@ -16,6 +16,7 @@ test('el Kanban permite mover oportunidades con drag and drop y con un control a
 test('el movimiento reutiliza la persistencia optimista y revierte ante un fallo', () => {
   assert.match(page, /fetch\(`\/api\/\$\{tenant\}\/evergreen\/appointments\/followup-stage`/)
   assert.match(page, /followup_stage: prevStage, notes: prevNotes/)
+  assert.match(page, /previousStage: prevStage/)
   assert.match(page, /toast\.error\('Error al actualizar la etapa'/)
 })
 
@@ -23,4 +24,7 @@ test('el endpoint impide mover una agenda de otra subcuenta o fuera del alcance 
   assert.match(route, /\.eq\('tenant_id', t\.tenantId\)/)
   assert.match(route, /appt\.setter_id !== t\.userId && appt\.closer_id !== t\.userId/)
   assert.match(route, /Solo puedes gestionar tus propias agendas/)
+  assert.match(route, /updateQuery\.is\('followup_stage', null\)/)
+  assert.match(route, /status: 409/)
+  assert.match(route, /action: 'followup_stage_update'/)
 })

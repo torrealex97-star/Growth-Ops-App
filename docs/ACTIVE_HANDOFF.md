@@ -1,3 +1,25 @@
+# CERRADO EN RAMA · Fase 3 — CRM y calendario operativo (9-oct-2026, Codex)
+
+- **Rama:** `codex/phase3-crm-calendar`, desde `origin/main` posterior al cierre de la fase 2.
+- **Reclamación:** `crm/seguimiento`, `crm/agendas`, lead scoring y revisión guiada de los 9 vínculos
+  venta↔agenda ambiguos. No toca MCP, VSL ni importes de ventas, cobros o comisiones.
+- **Objetivo:** verificar y cerrar persistencia real del Kanban, semana actual y responsive del
+  calendario, lectura visual de estado/score y un flujo conservador de revisión humana para vínculos
+  históricos. Toda lectura/escritura queda acotada por `tenant_id`; no se infieren vínculos sin evidencia.
+- **Hallazgo de datos:** WDC tiene 685 agendas; las 685 conservan `raw_payload`, ninguna conserva aún
+  `qualification`, 49 tienen score IA posterior a llamada y 0 tenían etapa manual. El score de formulario
+  existía pero no leía el histórico ni se mostraba en el tablero.
+- **Implementado:** score explicable único (compromiso/capacidad/inversión) con fallback al payload real,
+  visible en Kanban, tabla y calendario; móvil abre hoy en modo día, escritorio en la semana actual y la
+  semana reduce su ancho mínimo. El Kanban conserva drag & drop + selector accesible, ahora con
+  compare-and-set contra concurrencia, rollback, tenant scope y auditoría.
+- **Revisión humana:** la edición de venta permite enlazar/desenlazar únicamente agendas del mismo
+  contacto; el servidor vuelve a comprobar tenant+contacto y audita el vínculo. No cambia importes.
+- **TESTED:** 13/13 focales PASS; typecheck PASS; quality completa PASS (suite y métricas); build de
+  producción PASS. Pendiente CI/merge, despliegue y smoke autenticado en móvil/escritorio.
+- **Siguiente fase (requiere permiso tras despliegue):** fase 4, contenido/contratos/marketing, empezando
+  por el recorrido real de importación de contratos y un smoke VSL/Contenido sin rehacer sistemas ya cerrados.
+
 # CERRADO, FUSIONADO Y APLICADO · Fase 2 — recorrido lead → agenda → venta → cobro → comisión (PR #431 + #432, 9-oct-2026, Codex)
 
 - **Rama:** `codex/phase2-lead-to-commission`, desde `origin/main` posterior al PR #430.
