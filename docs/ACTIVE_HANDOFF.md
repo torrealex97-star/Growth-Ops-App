@@ -13,8 +13,10 @@
 - **UX:** el editor agrupa Miniatura dinámica, texto y duración bajo `Portada y play`; la vista
   previa sigue usando el reproductor real sin contaminar métricas. Play tiene foco, hit area y estado
   activo; se conserva fallback estático para compatibilidad.
-- **TESTED:** typecheck PASS; VSL focal 60/60 PASS; suite completa 1.529 PASS, 3 omitidas y 0 fallos.
-  Pendiente build/CI/Preview y smoke visual antes de fusionar.
+- **TESTED:** typecheck PASS; VSL focal 60/60 PASS; suite completa 1.529 PASS, 3 omitidas y 0 fallos;
+  build de producción PASS y checks estáticos del PR PASS. El despliegue Preview está READY, pero
+  no permite smoke con datos porque ese entorno no recibe `POSTGRES_URL`; el embed devuelve el error
+  controlado correspondiente. Pendiente smoke visual definitivo sobre producción tras fusionar.
 
 # CERRADO Y DESPLEGADO · Atribución verificable en agendas (PR #420, 9-oct-2026, Codex)
 
