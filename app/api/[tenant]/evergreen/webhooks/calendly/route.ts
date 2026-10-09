@@ -7,7 +7,7 @@ import { mapKey, slugify } from '@/lib/qualification'
 import { notifyCreatuagente, toZonedISO, addMinutesISO } from '@/lib/creatuagente'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { getOrCreateContact } from '@/lib/contacts/resolve'
-import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
+import { leerToque, leerTrayectoria, registrarToque, serializarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
 import { resolverColaboradorPorCodigo } from '@/lib/collaborators/scope'
 
 export const runtime = 'nodejs'
@@ -145,6 +145,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       utm_term: tr.utm_term || null,
     }
     const hasUtm = Object.values(utm).some(Boolean)
+    const trayectoria = leerTrayectoria(p)
+    const attributionBooking = serializarToque(trayectoria.booking)
 
     // --- Respuestas del formulario ---
     const qa: Array<{ question: string; answer: string; position?: number }> = Array.isArray(p.questions_and_answers)
@@ -213,10 +215,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // semanas después por un email, el anuncio es quien lo trajo, y machacarlo haría que el canal que
     // remata se llevara el mérito del que capta — y con eso se decide el presupuesto.
     //
-    // Hoy esto casi nunca escribe nada, y no es un fallo de aquí: los payloads no traen UTMs porque los
-    // enlaces de reserva no los llevan (0 de 559 citas tienen utm_source). El camino queda puesto para
-    // cuando empiecen a llegar. Un fallo al atribuir NO tumba el webhook: la cita y el contacto valen más
-    // que su procedencia.
+    // Un fallo devuelve 500 para que Calendly reintente: la atribución forma parte del contrato de datos.
     // COLABORADOR del enlace (?ref=CODIGO, aceptado como tracking.ref / referral):
     // resuelto server-side a UUID del perfil, primera-atribución-válida-gana la
     // fija registrarToque. El utm_content sigue para reporting; el dinero va por FK.
@@ -239,13 +238,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       }
     }
     try {
-      const toque = leerToque(body)
+      const toque = leerToque(p)
       if (colaboradorId || toqueTieneDatos(toque)) {
         const r = await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
-        if (!r.ok) console.warn('[atribucion] no se pudo registrar el toque:', r.error)
+        if (!r.ok)
+          return NextResponse.json(
+            { error: 'Error registrando la atribución de Calendly', detail: r.error },
+            { status: 500 }
+          )
       }
     } catch (e) {
-      console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
+      return NextResponse.json(
+        { error: 'Error registrando la atribución de Calendly', detail: e instanceof Error ? e.message : String(e) },
+        { status: 500 }
+      )
     }
     if (!resolved.created) {
       const { error: enriquecimientoErr } = await sb
@@ -304,51 +310,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
       if (qualErr) console.error('[webhooks/calendly] no se pudo volcar la cualificación:', qualErr.message)
-    }
-
-    // Atribución (UTMs de Calendly)
-    if (hasUtm) {
-      const firstUtm = {
-        first_utm_source: utm.utm_source,
-        first_utm_medium: utm.utm_medium,
-        first_utm_campaign: utm.utm_campaign,
-        first_utm_content: utm.utm_content,
-        first_utm_term: utm.utm_term,
-      }
-      const lastUtm = {
-        last_utm_source: utm.utm_source,
-        last_utm_medium: utm.utm_medium,
-        last_utm_campaign: utm.utm_campaign,
-        last_utm_content: utm.utm_content,
-        last_utm_term: utm.utm_term,
-      }
-      const { data: attr } = await sb
-        .from('contact_attributions')
-        .select('id')
-        .eq('contact_id', contact.id)
-        .eq('tenant_id', tenantId)
-        .eq('is_primary', true)
-        .maybeSingle()
-      if (attr) {
-        const { error: attrErr } = await sb
-          .from('contact_attributions')
-          .update({ last_touch_at: now, ...utm, ...lastUtm, source: 'calendly' })
-          .eq('id', attr.id)
-        if (attrErr) console.error('[webhooks/calendly] no se pudo actualizar contact_attributions:', attrErr.message)
-      } else {
-        const { error: attrErr } = await sb.from('contact_attributions').insert({
-          tenant_id: tenantId,
-          contact_id: contact.id,
-          source: 'calendly',
-          ...utm,
-          ...firstUtm,
-          ...lastUtm,
-          first_touch_at: now,
-          last_touch_at: now,
-          is_primary: true,
-        })
-        if (attrErr) console.error('[webhooks/calendly] no se pudo crear contact_attributions:', attrErr.message)
-      }
     }
 
     // --- VSL: engancha el visionado (incl. anónimo sin optin) y guarda el % visto ---
@@ -441,6 +402,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       calendly_event_uuid: eventUuid,
       qualification: effectiveQualification,
       ...utm,
+      // Calendly solo prueba el toque de reserva. No lo ascendemos a first/last sin evidencia.
+      attribution_first: null,
+      attribution_second: null,
+      attribution_last: null,
+      attribution_booking: attributionBooking,
+      attribution_status: attributionBooking ? 'partial' : 'none',
       ...(closerId ? { closer_id: closerId } : {}),
       ...(setterId ? { setter_id: setterId } : {}),
     }

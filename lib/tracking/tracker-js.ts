@@ -8,7 +8,7 @@
 // Eventos manuales (CTAs, formularios, ventas):
 //   window.gop('cta_click', { cta: 'reservar' })
 //   window.gop('lead', { email: '...@...' })  // solo lo que el form ya envía al negocio
-export const TRACKER_JS_VERSION = '1.0.0'
+export const TRACKER_JS_VERSION = '1.1.0'
 
 export const TRACKER_JS = String.raw`
 (function () {
@@ -69,7 +69,10 @@ export const TRACKER_JS = String.raw`
   }
 
   // ---- Atribución: UTMs y click ids de la URL (persistidos por sesión) ----
-  var ATTR_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'gclid', 'fbclid', 'ttclid']
+  var ATTR_KEYS = [
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id', 'utm_source_platform',
+    'gclid', 'gbraid', 'wbraid', 'fbclid', 'ttclid', 'msclkid'
+  ]
   function currentAttrs() {
     var out = {}
     try {

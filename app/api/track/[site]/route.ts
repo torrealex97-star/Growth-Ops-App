@@ -48,9 +48,14 @@ type TrackBody = {
   utm_campaign?: string
   utm_content?: string
   utm_term?: string
+  utm_id?: string
+  utm_source_platform?: string
   gclid?: string
+  gbraid?: string
+  wbraid?: string
   fbclid?: string
   ttclid?: string
+  msclkid?: string
   properties?: Record<string, unknown>
 }
 
@@ -242,6 +247,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           gclid: body.gclid ?? null,
           fbclid: body.fbclid ?? null,
           ttclid: body.ttclid ?? null,
+          raw_parameters: {
+            utm_id: body.utm_id ?? null,
+            utm_source_platform: body.utm_source_platform ?? null,
+            gbraid: body.gbraid ?? null,
+            wbraid: body.wbraid ?? null,
+            msclkid: body.msclkid ?? null,
+          },
         })
         .select('id')
         .single()
@@ -276,10 +288,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           campaign: body.utm_campaign ?? null,
           landing_url: body.url ?? null,
           referrer: body.referrer ?? null,
-          click_id_type: body.gclid ? 'gclid' : body.fbclid ? 'fbclid' : body.ttclid ? 'ttclid' : null,
-          click_id: body.gclid ?? body.fbclid ?? body.ttclid ?? null,
+          click_id_type: body.gclid
+            ? 'gclid'
+            : body.gbraid
+              ? 'gbraid'
+              : body.wbraid
+                ? 'wbraid'
+                : body.fbclid
+                  ? 'fbclid'
+                  : body.ttclid
+                    ? 'ttclid'
+                    : body.msclkid
+                      ? 'msclkid'
+                      : null,
+          click_id: body.gclid ?? body.gbraid ?? body.wbraid ?? body.fbclid ?? body.ttclid ?? body.msclkid ?? null,
           capture_method: 'browser',
           observation_type: 'observed',
+          raw_payload: {
+            utm_content: body.utm_content ?? null,
+            utm_term: body.utm_term ?? null,
+            utm_id: body.utm_id ?? null,
+            utm_source_platform: body.utm_source_platform ?? null,
+          },
         })
         .select('id')
         .single()

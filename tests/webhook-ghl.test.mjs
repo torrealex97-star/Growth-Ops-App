@@ -186,9 +186,9 @@ test('ninguna escritura de estado de negocio es fire-and-forget', () => {
   // lead_status 'agendado' en los DOS caminos (cita actualizada y creada): debe haber dos guardias.
   const guardiasLead = (codigo.match(/Error actualizando el estado del lead/g) || []).length
   assert.equal(guardiasLead, 2, 'lead_status se comprueba en el update y en el create de la agenda')
-  // Atribución: canal y presupuesto. Update del toque primario e insert del primero, ambos 500.
-  assert.match(codigo, /\{ error: 'Error actualizando la atribución del contacto'/)
-  assert.match(codigo, /\{ error: 'Error creando la atribución del contacto'/)
+  // Atribución: una única implementación canónica; cualquier fallo responde 500 para reintento.
+  assert.match(codigo, /Error registrando la atribución del contacto/)
+  assert.match(codigo, /registrarToque\(sb, tenantId, contact\.id/)
   // audit_logs de citas: un cambio de cita sin rastro haría mentirosa la auditoría.
   assert.match(codigo, /Error registrando la auditoría de la agenda/)
   // Cualificación del formulario: si no se guarda, se pierde la única copia de las respuestas.
@@ -203,15 +203,14 @@ test('ninguna escritura de estado de negocio es fire-and-forget', () => {
 
 // ── ESTADO CONOCIDO, FIJADO A PROPÓSITO ──────────────────────────────────────────────────────
 
-test('la capa raw YA existe (F1) y la atribución sigue dependiendo de que GHL mande UTMs', () => {
+test('la capa raw existe y la atribución lee los bloques anidados reales de GHL', () => {
   // Este test fijaba el estado anterior —sin capa raw— para que añadirla fuera deliberado. F1 la
   // añadió el 23-sep: el sobre se guarda antes de procesar y el reintento cae en la misma fila.
   // El detalle vive en `tests/f1-raw-ghl.test.mjs`; aquí solo se comprueba que no desaparezca.
   assert.match(codigo, /from\('raw_events'\)/)
-  // Lo que NO ha cambiado: la atribución solo se escribe si llegan UTMs o `source`, y GHL sigue sin
-  // mandarlos (bloqueo de configuración de Alex). Ahora, al menos, el payload queda guardado y el
-  // día que se configure se puede reprocesar hacia atrás.
-  assert.match(codigo, /if \(hasUtm \|\| source\)/)
+  assert.match(codigo, /leerTrayectoria\(payload\)/)
+  assert.match(codigo, /attribution_first: serializarToque\(trayectoria\.first\)/)
+  assert.match(codigo, /attribution_second: serializarToque\(trayectoria\.second\)/)
 })
 
 test('el secreto se lee de la subcuenta, con el entorno solo como respaldo', () => {

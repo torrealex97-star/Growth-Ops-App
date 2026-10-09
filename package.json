@@ -15,6 +15,7 @@
     "tipos:bd": "node scripts/generar-tipos-bd.mjs",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register.mjs --test tests/*.test.mjs",
     "test:metrics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register.mjs --test tests/metrics/*.test.mjs",
+    "test:attribution": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register.mjs --test tests/attribution-trajectory.test.mjs tests/appointment-attribution-evidence.test.mjs tests/citas-sync-atribucion.test.mjs tests/tracking-fase-c.test.mjs tests/webhook-ghl.test.mjs",
     "quality": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:metrics",
     "mcp:supabase": "npx -y @supabase/mcp-server-supabase@latest --read-only --project-ref rgcbveflosqgxrcqlqzv",
     "mcp:search": "npx -y duckduckgo-mcp-server",

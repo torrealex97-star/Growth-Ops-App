@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { atribuirDesdePayload, type ToqueAtribucion } from '@/lib/contacts/atribucion'
+import { atribuirDesdePayload, leerTrayectoria, serializarToque, type ToqueAtribucion } from '@/lib/contacts/atribucion'
 import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
 import { mejorNombre } from '@/lib/contacts/resolve'
 import { estadoAlSincronizar, mapearEstadoExterno } from '@/lib/appointments/status'
@@ -521,6 +521,7 @@ export async function syncGhl(
       } catch (e) {
         console.warn('[atribucion][ghl] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
       }
+      const trayectoriaGhl = leerTrayectoria(event)
       // Misma traducción que el webhook (lib/appointments/status.ts). Un estado que no se reconoce
       // se queda en 'scheduled', que es lo que GHL da por defecto a una cita recién creada.
       const status = mapearEstadoExterno(text(event.appointmentStatus) || text(event.status)) || 'scheduled'
@@ -545,6 +546,15 @@ export async function syncGhl(
         // Una pasada nunca retrocede una asistencia ya marcada a «sin resolver» (ver estadoAlSincronizar).
         status: estadoAlSincronizar((existing.data as { status?: string | null } | null)?.status, status),
         source: 'ghl',
+        attribution_first: serializarToque(trayectoriaGhl.first),
+        attribution_second: serializarToque(trayectoriaGhl.second),
+        attribution_last: serializarToque(trayectoriaGhl.last),
+        attribution_booking: serializarToque(trayectoriaGhl.booking),
+        attribution_status: trayectoriaGhl.second
+          ? 'complete'
+          : trayectoriaGhl.first || trayectoriaGhl.last || trayectoriaGhl.booking
+            ? 'partial'
+            : 'none',
         ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
         calendar_name: text(calendar.name) || 'GoHighLevel',
         raw_payload: event,
@@ -686,6 +696,7 @@ export async function syncCalendly(
           ...(toque.utmContent ? { utm_content: toque.utmContent } : {}),
           ...(toque.utmTerm ? { utm_term: toque.utmTerm } : {}),
         }
+        const bookingSnapshot = serializarToque(toque)
         // Closer = dueño del calendario (event_memberships[0].user_email), igual que el webhook:
         // resuelto por email o calendly_email y acotado a la subcuenta. SOLO se envía si hay
         // usuario resuelto: la pasada siguiente nunca pisa una asignación manual.
@@ -715,6 +726,11 @@ export async function syncCalendly(
           // Calendly no sabe si el lead se presentó: nunca retrocede una asistencia ya marcada.
           status: estadoAlSincronizar((existing.data as { status?: string | null } | null)?.status, status),
           source: 'calendly',
+          attribution_first: null,
+          attribution_second: null,
+          attribution_last: null,
+          attribution_booking: bookingSnapshot,
+          attribution_status: bookingSnapshot ? 'partial' : 'none',
           ...utmDeCita,
           ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
           calendar_name: text(event.name) || 'Calendly',

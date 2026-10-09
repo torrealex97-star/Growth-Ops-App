@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getOrCreateContact, mejorNombre } from '@/lib/contacts/resolve'
-import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
+import {
+  leerToque,
+  leerTrayectoria,
+  registrarToque,
+  serializarToque,
+  toqueTieneDatos,
+  type ToqueAtribucion,
+} from '@/lib/contacts/atribucion'
 import { attributionDateBeforeCutoff, resolverRefColaborador } from '@/lib/collaborators/ref-signal'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret, diagnosticoCabeceras } from '@/lib/webhooks/verifySecret'
@@ -339,21 +346,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       string | null
     const status = mapStatus(pick(payload.status, payload.appointmentStatus, payload.appointment_status))
     const source = pick(payload.source) as string | null
-    // UTMs de PRIMER contacto (first-touch) — acepta utm_source_first / utmSourceFirst
-    const firstUtm = {
-      first_utm_source: pick(payload.utm_source_first, payload.utmSourceFirst),
-      first_utm_medium: pick(payload.utm_medium_first, payload.utmMediumFirst),
-      first_utm_campaign: pick(payload.utm_campaign_first, payload.utmCampaignFirst),
-      first_utm_content: pick(payload.utm_content_first, payload.utmContentFirst),
-      first_utm_term: pick(payload.utm_term_first, payload.utmTermFirst),
+    const trayectoria = leerTrayectoria(payload)
+    const attributionSnapshot = {
+      attribution_first: serializarToque(trayectoria.first),
+      attribution_second: serializarToque(trayectoria.second),
+      attribution_last: serializarToque(trayectoria.last),
+      attribution_booking: serializarToque(trayectoria.booking),
+      attribution_status: trayectoria.second
+        ? 'complete'
+        : trayectoria.first || trayectoria.last || trayectoria.booking
+          ? 'partial'
+          : 'none',
     }
-    // UTMs de ÚLTIMO contacto (last-touch) — acepta utm_source_last / utmSourceLast
+    // UTMs de PRIMER contacto: prioriza el bloque canónico de atribución que GHL envía realmente.
+    const firstUtm = {
+      first_utm_source: pick(trayectoria.first?.utmSource, payload.utm_source_first, payload.utmSourceFirst),
+      first_utm_medium: pick(trayectoria.first?.utmMedium, payload.utm_medium_first, payload.utmMediumFirst),
+      first_utm_campaign: pick(trayectoria.first?.utmCampaign, payload.utm_campaign_first, payload.utmCampaignFirst),
+      first_utm_content: pick(trayectoria.first?.utmContent, payload.utm_content_first, payload.utmContentFirst),
+      first_utm_term: pick(trayectoria.first?.utmTerm, payload.utm_term_first, payload.utmTermFirst),
+    }
+    // UTMs de ÚLTIMO contacto. Nunca se presenta este bloque como "segundo toque".
     const lastUtm = {
-      last_utm_source: pick(payload.utm_source_last, payload.utmSourceLast),
-      last_utm_medium: pick(payload.utm_medium_last, payload.utmMediumLast),
-      last_utm_campaign: pick(payload.utm_campaign_last, payload.utmCampaignLast),
-      last_utm_content: pick(payload.utm_content_last, payload.utmContentLast),
-      last_utm_term: pick(payload.utm_term_last, payload.utmTermLast),
+      last_utm_source: pick(trayectoria.last?.utmSource, payload.utm_source_last, payload.utmSourceLast),
+      last_utm_medium: pick(trayectoria.last?.utmMedium, payload.utm_medium_last, payload.utmMediumLast),
+      last_utm_campaign: pick(trayectoria.last?.utmCampaign, payload.utm_campaign_last, payload.utmCampaignLast),
+      last_utm_content: pick(trayectoria.last?.utmContent, payload.utm_content_last, payload.utmContentLast),
+      last_utm_term: pick(trayectoria.last?.utmTerm, payload.utm_term_last, payload.utmTermLast),
     }
     // UTMs "primarias" (columnas utm_*): usa las planas si vienen, si no las last, si no las first
     const utm = {
@@ -456,17 +475,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       }
     }
     try {
-      const toque = leerToque(payload)
+      const toque = trayectoria.booking ?? trayectoria.last ?? trayectoria.first ?? leerToque(payload)
       // Si el código llegó por campo personalizado (no por ?ref=), utm_content
       // no lo trae: lo relleno con el código normalizado para que la capa de
       // datos (triggers de backfill, reporting) vea la misma señal textual.
       if (refCode && !toque.utmContent) toque.utmContent = refCode
       if (colaboradorId || toqueTieneDatos(toque)) {
-        const r = await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
-        if (!r.ok) console.warn('[atribucion] no se pudo registrar el toque:', r.error)
+        // Conserva first/last declarados por GHL. Se registran en orden; `registrarToque` protege
+        // el primer toque existente y no deja que un replay histórico degrade el último.
+        const toques = [trayectoria.first, trayectoria.second, trayectoria.last, toque].filter(
+          (item, index, all): item is ToqueAtribucion => Boolean(item) && all.indexOf(item) === index
+        )
+        for (let i = 0; i < toques.length; i += 1) {
+          const r = await registrarToque(sb, tenantId, contact.id, {
+            ...toques[i],
+            enEl: new Date(new Date(now).getTime() + i).toISOString(),
+            colaboradorId: i === toques.length - 1 ? colaboradorId : null,
+          })
+          if (!r.ok) {
+            return await responder(
+              { error: 'Error registrando la atribución del contacto', detail: r.error },
+              { status: 500 }
+            )
+          }
+        }
       }
     } catch (e) {
-      console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
+      return await responder(
+        {
+          error: 'Error registrando la atribución del contacto',
+          detail: e instanceof Error ? e.message : String(e),
+        },
+        { status: 500 }
+      )
     }
     if (!resolved.created) {
       // "Última vez visto" no es un dato de negocio: si falla, la entrega sigue siendo válida y
@@ -524,51 +565,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       }
     }
 
-    // --- 2) Atribución (solo si llegan UTMs/source) ---
-    if (hasUtm || source) {
-      const { data: attr } = await sb
-        .from('contact_attributions')
-        .select('id, source')
-        .eq('contact_id', contact.id)
-        .eq('tenant_id', tenantId)
-        .eq('is_primary', true)
-        .maybeSingle()
-      // La atribución decide a qué canal (y con qué presupuesto) se le acredita el lead: que se
-      // pierda en silencio es exactamente el "parece idempotente pero corrompe datos" del backlog.
-      // 500 → GHL reintenta la entrega y el atributo vuelve a intentarse sobre el mismo contacto.
-      if (attr) {
-        const { error: errorAttr } = await sb
-          .from('contact_attributions')
-          .update({ last_touch_at: now, ...utm, ...lastUtm, source: source || attr.source })
-          .eq('id', attr.id)
-        if (errorAttr) {
-          return await responder(
-            { error: 'Error actualizando la atribución del contacto', detail: errorAttr.message },
-            { status: 500 }
-          )
-        }
-      } else {
-        const { error: errorAttr } = await sb.from('contact_attributions').insert({
-          tenant_id: tenantId,
-          contact_id: contact.id,
-          source,
-          ...utm,
-          ...firstUtm,
-          ...lastUtm,
-          first_touch_at: now,
-          last_touch_at: now,
-          is_primary: true,
-        })
-        if (errorAttr) {
-          return await responder(
-            { error: 'Error creando la atribución del contacto', detail: errorAttr.message },
-            { status: 500 }
-          )
-        }
-      }
-    }
-
-    // --- 3) Progreso de VSL ---
+    // --- 2) Progreso de VSL ---
     const vslPct = pick(payload.vsl_watch_pct, payload.watch_percent, payload.watchPercent, payload.progress) as
       number | null
     if (event.startsWith('vsl') || vslPct !== null) {
@@ -655,6 +652,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (closerId) upd.closer_id = closerId
       if (setterId) upd.setter_id = setterId
       if (hasUtm) Object.assign(upd, utm)
+      if (attributionSnapshot.attribution_status !== 'none') Object.assign(upd, attributionSnapshot)
       if (durationMin != null) upd.duration_minutes = durationMin
       if (ghlQualification) upd.qualification = ghlQualification
       // EL ESTADO DE LA CITA SOLO EXISTE AQUÍ: devolver `ok` con el update no aplicado hacía que
@@ -716,6 +714,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       pipeline_stage: pick(payload.pipelineStage, payload.pipeline_stage),
       source,
       ...utm,
+      ...attributionSnapshot,
       ...(ghlQualification ? { qualification: ghlQualification } : {}),
       raw_payload: payload,
     }
