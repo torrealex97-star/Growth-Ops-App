@@ -42,6 +42,12 @@ export type CitasSyncOpts = {
   modo?: 'completo' | 'soloEventos'
   /** Cache compartida field_key→id de custom_field_defs (rendimiento en pasadas grandes). */
   customDefsCache?: Map<string, Map<string, string>>
+  /** Cursor opaco del proveedor. Permite dividir el histórico en varias invocaciones <60 s. */
+  pageToken?: string
+  /** Páginas máximas en esta invocación. El histórico manual usa 1 y reanuda desde la UI. */
+  maxPages?: number
+  /** Tamaño de página de Calendly (1..100). Un lote pequeño evita el timeout de Vercel Hobby. */
+  pageSize?: number
 }
 
 export async function findOrCreateContact(
@@ -612,19 +618,21 @@ export async function syncCalendly(
   const duenaPorEmail = new Map<string, string | null>()
 
   const { desde, hasta } = ventana(opts)
-  let pageToken = ''
+  let pageToken = opts.pageToken ?? ''
   let pages = 0
   let imported = 0
   let updated = 0
   let cortado = false
-  while (pages < 100) {
+  const maxPages = Math.max(1, Math.min(opts.maxPages ?? 100, 100))
+  const pageSize = Math.max(1, Math.min(opts.pageSize ?? 100, 100))
+  while (pages < maxPages) {
     if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
       cortado = true
       break
     }
     const url = new URL('https://api.calendly.com/scheduled_events')
     url.searchParams.set('user', me.resource.uri)
-    url.searchParams.set('count', '100')
+    url.searchParams.set('count', String(pageSize))
     url.searchParams.set('sort', 'start_time:asc')
     // Ventana: el botón deja sin min/max (5 años atrás → +1 año); el cron acota por desde.
     url.searchParams.set('min_start_time', new Date(desde).toISOString())
@@ -761,5 +769,15 @@ export async function syncCalendly(
   // cada pasada dedica su presupuesto restante a las citas recientes sin dueño (la venta nueva
   // del contacto sale con closer de referencia en cuanto su cita se repara).
   const closerBackfill = await backfillCloserCalendly(sb, tenantId, headers, duenaPorEmail, opts)
-  return { provider: 'calendly', pages, imported, updated, cortado, closerBackfill }
+  return {
+    provider: 'calendly',
+    pages,
+    imported,
+    updated,
+    cortado,
+    closerBackfill,
+    // Si existe, la siguiente invocación continúa aquí. Nunca se inventa un cursor propio:
+    // Calendly lo firma y lo devuelve como token opaco.
+    nextPageToken: pageToken || null,
+  }
 }

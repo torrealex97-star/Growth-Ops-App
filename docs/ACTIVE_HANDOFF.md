@@ -1,4 +1,24 @@
-# CERRADO EN RAMA · Auditoría de estabilidad VSL (9-oct-2026, Codex)
+# CERRADO EN RAMA · Histórico Calendly reanudable y atribución auditada (9-oct-2026, Codex)
+
+- **Rama única:** `codex/calendly-history-attribution`, desde `main` posterior al PR #424. Alcance:
+  únicamente la carga histórica de Calendly, su cursor, trazabilidad y regresiones. No modifica
+  fórmulas, RLS, esquema ni datos financieros.
+- **Causa raíz reproducida:** el botón intentaba recorrer cientos de eventos, invitees y escrituras
+  secuenciales en una única función de 60 s. Al morir no registraba la ejecución y la UI obligaba a
+  recargar/repetir desde el principio.
+- **Implementado:** una página de 20 eventos por invocación, cursor opaco del proveedor y continuación
+  automática; el cursor se conserva 30 minutos en el navegador para reanudar tras recarga o caída de
+  red. Cada lote usa `recordSyncRun`; todos los upserts existentes siguen siendo idempotentes.
+- **Evidencia de producción antes del arreglo:** 644 agendas WDC, 543 de Calendly; 72 agendas/50
+  contactos distintos conservan UTMs recuperables. `contact_attributions`: 203 filas primarias,
+  50 con first UTM y 20 con last UTM. La diferencia no es una pérdida del backfill: varios bookings
+  pertenecen al mismo contacto y los toques históricos anteriores no pisan un last-touch posterior.
+  Los 571/572 huecos sin señal no pueden reconstruirse si Calendly nunca recibió UTMs.
+- **TESTED:** focales de citas/histórico 18/18 PASS; typecheck PASS; suite completa 1.532 PASS,
+  3 omitidas y 0 fallos; build de producción PASS. Pendiente CI, merge, despliegue y smoke autenticado
+  del recorrido completo del botón.
+
+# CERRADO Y DESPLEGADO · Auditoría de estabilidad VSL (PR #424, 9-oct-2026, Codex)
 
 - **Rama:** `codex/vsl-production-audit`, creada desde `main` después del PR #423.
 - **Producción auditada:** escritorio y viewport móvil 390×844; consola sin errores, rutas de vídeos,
@@ -11,7 +31,8 @@
   poster-first, ahorro de datos, reduced motion y cero fragmentos HLS antes del play público.
 - **TESTED:** typecheck PASS; lint focal PASS (solo avisos históricos de `<img>` deliberado para
   Bunny); VSL focal 12/12 PASS; suite completa 1.531 PASS, 3 omitidas y 0 fallos; build PASS.
-- **Pendiente:** CI/Preview, merge y smoke final de producción.
+- **Producción:** PR #424 fusionada en `main` (`4ae67e4e`); despliegue READY y
+  `app.scalixsystems.com` apunta a esa versión.
 
 # CERRADO EN RAMA · VSL motion poster y play optimizado (9-oct-2026, Codex)
 

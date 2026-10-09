@@ -875,15 +875,46 @@ export default function IntegracionesPage() {
       const direct: Record<string, string> = {
         instagram: `/api/${tenant}/evergreen/instagram/sync`,
       }
-      const r = await fetch(direct[g.id] || `/api/${tenant}/evergreen/settings/integraciones/history-sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: direct[g.id] ? undefined : JSON.stringify({ provider: g.id }),
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(j.error || 'La sincronización falló')
-      const imported = j.imported ?? j.inserted ?? j.synced ?? j.total ?? 0
-      const updated = j.updated ?? j.matched ?? 0
+      let imported = 0
+      let updated = 0
+      let cursor: string | null = null
+      const resumeKey = `growth-ops:history:${tenant}:${g.id}`
+      if (g.id === 'calendly') {
+        try {
+          const saved = JSON.parse(localStorage.getItem(resumeKey) || 'null') as {
+            cursor?: string
+            savedAt?: number
+          } | null
+          // Los page tokens son temporales. Solo reanudamos una carga reciente; una antigua
+          // vuelve a empezar de forma idempotente y no deja al usuario atrapado en un cursor caducado.
+          if (saved?.cursor && saved.savedAt && Date.now() - saved.savedAt < 30 * 60 * 1000) cursor = saved.cursor
+          else localStorage.removeItem(resumeKey)
+        } catch {
+          localStorage.removeItem(resumeKey)
+        }
+      }
+
+      // Calendly devuelve un lote por petición para respetar los 60 s de Vercel Hobby. El resto
+      // mantiene una sola petición. El cursor se guarda después de CADA lote: recargar o perder
+      // la red no obliga a empezar desde cero.
+      for (let batch = 0; batch < 100; batch++) {
+        const r = await fetch(direct[g.id] || `/api/${tenant}/evergreen/settings/integraciones/history-sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: direct[g.id] ? undefined : JSON.stringify({ provider: g.id, ...(cursor ? { cursor } : {}) }),
+        })
+        const j = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(j.error || 'La sincronización falló')
+        imported += j.imported ?? j.inserted ?? j.synced ?? j.total ?? 0
+        updated += j.updated ?? j.matched ?? 0
+        const next = typeof j.nextPageToken === 'string' && j.nextPageToken ? j.nextPageToken : null
+        if (g.id !== 'calendly' || !next) {
+          localStorage.removeItem(resumeKey)
+          break
+        }
+        cursor = next
+        localStorage.setItem(resumeKey, JSON.stringify({ cursor, savedAt: Date.now() }))
+      }
       toast.success(`${g.title}: histórico sincronizado`, {
         description: `${imported} nuevos · ${updated} actualizados`,
       })

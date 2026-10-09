@@ -98,7 +98,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { tenant } = await params
     const auth = await requireAdmin(tenant)
     if ('error' in auth) return auth.error
-    const body = (await req.json().catch(() => ({}))) as { provider?: string; dryRun?: boolean }
+    const body = (await req.json().catch(() => ({}))) as {
+      provider?: string
+      dryRun?: boolean
+      cursor?: string
+    }
     const cfg = await getTenantConfigWithFallback(auth.tenantId, true)
     const sb = serviceClient()
     // Meta se carga desde aquí para que el histórico entre por el mismo sitio que el resto: primero
@@ -132,7 +136,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ provider: 'meta', campañas, diario, anuncios, sinceDays: dias })
     }
     if (body.provider === 'ghl') return NextResponse.json(await syncGhl(sb, auth.tenantId, cfg))
-    if (body.provider === 'calendly') return NextResponse.json(await syncCalendly(sb, auth.tenantId, cfg))
+    if (body.provider === 'calendly') {
+      // El histórico completo son cientos de llamadas (evento + invitees + escrituras). Hacerlo
+      // dentro de UNA función de 60 s terminaba en 504 y obligaba a recargar. Se procesa una página
+      // pequeña por petición y la UI continúa con el cursor opaco de Calendly. Cada lote queda
+      // registrado y es idempotente; si la red se corta, se reintenta el mismo cursor sin duplicar.
+      const cursor = typeof body.cursor === 'string' && body.cursor.length <= 2048 ? body.cursor : undefined
+      const result = await recordSyncRun(
+        sb,
+        {
+          tenantId: auth.tenantId,
+          provider: 'calendly',
+          job: 'calendly-historico',
+          trigger: 'historico',
+          secrets: [cfg.CALENDLY_API_TOKEN],
+          requiere: { claves: ['CALENDLY_API_TOKEN'], cfg },
+        },
+        () => syncCalendly(sb, auth.tenantId, cfg, { pageToken: cursor, maxPages: 1, pageSize: 20 }),
+        (r) => ({
+          rowsWritten: r.imported + r.updated,
+          failures: [],
+          detail: {
+            importadas: r.imported,
+            actualizadas: r.updated,
+            closerBackfill: r.closerBackfill,
+            tieneSiguienteLote: Boolean(r.nextPageToken),
+          },
+        })
+      )
+      return NextResponse.json(result)
+    }
     if (body.provider === 'fathom')
       return NextResponse.json(await syncFathom(sb, auth.tenantId, cfg, { dryRun: body.dryRun === true }))
     return NextResponse.json({ error: 'Proveedor no soportado' }, { status: 400 })
