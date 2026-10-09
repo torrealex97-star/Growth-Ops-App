@@ -66,8 +66,8 @@ test('la lib de citas es idempotente y acotada por presupuesto', () => {
   assert.match(code, /lazyContacts/, 'el modo soloEventos salta la fase de contactos')
   assert.match(
     code,
-    /contacts\/\$\{encodeURIComponent\(ghlContactId\)\}/,
-    'el contacto perezoso es un fetch individual'
+    /enriquecerAtribucionDesdeContactoGhl\(\{\}, ghlContactId, token\)/,
+    'el contacto perezoso usa el fetch individual compartido'
   )
   // Idempotencia: upsert lógico por external_id — re-leer nunca duplica.
   assert.match(code, /eq\('external_id', eventId\)/, 'GHL deduplica por external_id')

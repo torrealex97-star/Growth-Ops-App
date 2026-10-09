@@ -44,14 +44,15 @@ test('las UTMs de la cita entran SOLO si el payload las trae: el spread vacío n
   assert.match(calendly, /attribution_booking: bookingSnapshot/)
 })
 
-test('GHL: la sync también registra el toque del evento si algún día trae UTMs (hoy 0 de 97)', () => {
+test('GHL: la sync registra first/last enriquecido y las UTMs de la agenda', () => {
   const sync = leer('lib/integrations/citas-sync.ts')
   const ghl = sync.slice(sync.indexOf('export async function syncGhl'))
   assert.ok(ghl.length > 0, 'existe syncGhl')
-  assert.match(ghl, /atribuirDesdePayload\(sb, tenantId, contact\.data\.id, event/)
+  assert.match(ghl, /await registrarToque\(sb, tenantId, contact\.data\.id/)
   assert.match(ghl, /source: 'ghl'/)
-  assert.match(ghl, /const trayectoriaGhl = leerTrayectoria\(event\)/)
+  assert.match(ghl, /const trayectoriaGhl = leerTrayectoria\(eventoConAtribucion\)/)
   assert.match(ghl, /attribution_second: serializarToque\(trayectoriaGhl\.second\)/)
+  assert.match(ghl, /utm_source: toquePlanoGhl\.utmSource/)
 })
 
 test('un fallo de atribución NO tumba la sync (la cita vale más que su procedencia)', () => {
