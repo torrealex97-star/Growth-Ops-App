@@ -906,8 +906,10 @@ export default function IntegracionesPage() {
         })
         const j = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(j.error || 'La sincronización falló')
-        imported += j.imported ?? j.inserted ?? j.synced ?? j.total ?? 0
-        updated += j.updated ?? j.matched ?? 0
+        // GHL separa contactos y citas; el resumen del histórico debe contar las citas procesadas,
+        // no mostrar 0 cuando el lote sí actualizó appointments.
+        imported += j.appointmentsImported ?? j.imported ?? j.inserted ?? j.synced ?? j.total ?? 0
+        updated += j.appointmentsUpdated ?? j.updated ?? j.matched ?? 0
         const next = typeof j.nextPageToken === 'string' && j.nextPageToken ? j.nextPageToken : null
         if (!resumable || !next) {
           localStorage.removeItem(resumeKey)

@@ -1,4 +1,4 @@
-# CERRADO EN RAMA · Histórico GHL reanudable sin timeout (9-oct-2026, Codex)
+# CERRADO Y DESPLEGADO · Histórico GHL reanudable sin timeout (PR #429, 9-oct-2026, Codex)
 
 - **Rama:** `codex/ghl-history-batches`, desde `origin/main` tras PR #428.
 - **Reclamación:** `lib/integrations/citas-sync.ts`, la ruta `history-sync`, el bucle de histórico
@@ -11,8 +11,10 @@
   duplicar por `external_id`. La reparación global de closers solo corre en el primer lote para no
   consumir el presupuesto de los siguientes. Cada lote queda registrado como `ghl-historico`.
 - **TESTED:** focales de GHL/citas 13/13 PASS; typecheck PASS; quality completa PASS (suite y métricas
-  788/788); build de producción PASS. Pendiente CI, merge, despliegue y repetir en producción el
-  botón de histórico para confirmar varios lotes sin 504.
+  788/788); build, smoke E2E y release gate PASS. Producción procesó el histórico completo en tres
+  lotes `ok` (40 + 43 + 18 citas, 41 s + 41 s + 19 s), sin 504 y terminando sin cursor pendiente.
+  La regresión visual descubierta en el smoke también queda cubierta: el aviso final suma las citas
+  importadas/actualizadas de GHL en vez de mostrar falsamente cero.
 
 # CERRADO EN RAMA · Enriquecimiento de atribución GHL por contacto (9-oct-2026, Codex)
 

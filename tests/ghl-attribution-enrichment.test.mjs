@@ -46,4 +46,6 @@ test('la UI conserva y reanuda cursores tanto de Calendly como de GHL', () => {
   assert.match(integrationsPage, /const resumable = g\.id === 'calendly' \|\| g\.id === 'ghl'/)
   assert.match(integrationsPage, /localStorage\.setItem\(resumeKey/)
   assert.match(integrationsPage, /if \(!resumable \|\| !next\)/)
+  assert.match(integrationsPage, /j\.appointmentsImported \?\? j\.imported/)
+  assert.match(integrationsPage, /j\.appointmentsUpdated \?\? j\.updated/)
 })
