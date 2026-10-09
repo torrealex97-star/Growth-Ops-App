@@ -1,4 +1,4 @@
-# EN CURSO · Fase 2 — recorrido lead → agenda → venta → cobro → comisión (9-oct-2026, Codex)
+# CERRADO, FUSIONADO Y APLICADO · Fase 2 — recorrido lead → agenda → venta → cobro → comisión (PR #431 + #432, 9-oct-2026, Codex)
 
 - **Rama:** `codex/phase2-lead-to-commission`, desde `origin/main` posterior al PR #430.
 - **Reclamación:** auditoría e integración del recorrido canónico en WDC: contactos, agendas,
@@ -7,6 +7,19 @@
 - **Objetivo:** verificar un recorrido real extremo a extremo, detectar roturas entre etapas y
   corregir únicamente las causas demostradas. Toda consulta/escritura debe quedar acotada por
   `tenant_id`; no se crearán ventas, cobros ni comisiones ficticias en producción.
+- **Hallazgo real:** 47 ventas activas, pero solo 1 conservaba `appointment_id`. No había cruces de
+  tenant en contactos, agendas, ventas, cobros ni comisiones. El único cobro elegible sin comisión
+  pertenece a un closer con `pays_commissions=false`: exclusión correcta, no comisión perdida.
+- **Implementado:** selector canónico y conservador de agenda (único show previo o única candidata),
+  usado por ambos importadores Stripe; el alta manual limpia la selección anterior y bloquea el
+  envío mientras resuelve la cita, evitando ventas sin vínculo por carrera asíncrona.
+- **Producción:** migración idempotente aplicada. Enlazó 37 ventas históricas inequívocas; resultado
+  final WDC: 38/47 ventas activas enlazadas, 9 casos ambiguos/sin evidencia pendientes de decisión
+  humana y 0 vínculos inválidos. No se inventó ni modificó ningún importe, cobro o comisión.
+- **Verificación:** 4/4 pruebas nuevas del selector; typecheck PASS; suite 1.543 PASS y 3 skipped;
+  build local PASS; CI, secretos, build, Smoke E2E, release gate y previews de Vercel PASS.
+- **Siguiente fase recomendada (requiere permiso):** fase 3, CRM/calendario: drag & drop persistente,
+  lead scoring, responsive/colores y revisión guiada de los 9 vínculos históricos ambiguos.
 
 # CERRADO Y DESPLEGADO · Histórico GHL reanudable sin timeout (PR #429, 9-oct-2026, Codex)
 
