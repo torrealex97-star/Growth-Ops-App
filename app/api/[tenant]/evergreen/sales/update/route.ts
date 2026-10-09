@@ -51,6 +51,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
     if ('status' in body && body.status) payload.status = body.status
     if ('notes' in body) payload.notes = body.notes || null
+    if ('appointment_id' in body) {
+      const appointmentId = body.appointment_id === 'none' || body.appointment_id === '' ? null : body.appointment_id
+      if (appointmentId !== null && typeof appointmentId !== 'string') {
+        return NextResponse.json({ error: 'appointment_id no válido' }, { status: 400 })
+      }
+      if (appointmentId) {
+        const { data: appointment, error: appointmentError } = await sb
+          .from('appointments')
+          .select('id, contact_id')
+          .eq('id', appointmentId)
+          .eq('tenant_id', t.tenantId)
+          .maybeSingle()
+        if (appointmentError || !appointment) {
+          return NextResponse.json({ error: 'La agenda no pertenece a esta subcuenta' }, { status: 400 })
+        }
+        if (prev.contact_id && appointment.contact_id !== prev.contact_id) {
+          return NextResponse.json({ error: 'La agenda pertenece a otro contacto' }, { status: 400 })
+        }
+      }
+      payload.appointment_id = appointmentId
+    }
     // NOTA: el flag attribution_conflict vivía en columnas que ya NO existen en la BD (su DDL se retiró —
     // commit 67600c7). Enviarlo a Supabase provocaba un 500 al reasignar un representante.
 
@@ -99,6 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         affiliate_id: prev.affiliate_id,
         gross_amount: prev.gross_amount,
         status: prev.status,
+        appointment_id: prev.appointment_id,
       },
       new_values: { ...payload, reconcile: result },
     })

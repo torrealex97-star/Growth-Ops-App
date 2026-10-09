@@ -41,3 +41,17 @@ export function getQualificationEntries(
     .map(([key, label]) => ({ label, value: qualification[key] as string | undefined }))
     .filter((e): e is { label: string; value: string } => Boolean(e.value && String(e.value).trim()))
 }
+
+/**
+ * Convierte la columna normalizada al contrato común de métricas. El histórico real todavía vive
+ * mayoritariamente en `appointments.raw_payload`, así que las pantallas deben usar esta fuente solo
+ * cuando la columna normalizada no aporta respuestas.
+ */
+export function getQualificationAnswers(
+  qualification: Qualification | null | undefined
+): { pregunta: string; respuesta: string }[] {
+  return getQualificationEntries(qualification).map(({ label, value }) => ({
+    pregunta: label,
+    respuesta: value,
+  }))
+}

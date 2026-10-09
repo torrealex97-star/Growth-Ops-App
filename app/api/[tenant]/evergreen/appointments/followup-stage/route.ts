@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const { appointmentId, followupStage, reason } = await req.json()
+    const { appointmentId, followupStage, previousStage, reason } = await req.json()
     if (!appointmentId || typeof appointmentId !== 'string') {
       return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 })
     }
@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
 
     const { data: appt } = await sb
       .from('appointments')
-      .select('id, setter_id, closer_id')
+      .select('id, setter_id, closer_id, followup_stage, notes')
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)
       .single()
@@ -60,8 +60,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       update.notes = reason.trim()
     }
 
-    const { error } = await sb.from('appointments').update(update).eq('id', appointmentId).eq('tenant_id', t.tenantId)
+    let updateQuery = sb.from('appointments').update(update).eq('id', appointmentId).eq('tenant_id', t.tenantId)
+    // Compare-and-set: si otra persona movió la oportunidad desde que se cargó el tablero, no
+    // pisamos su decisión silenciosamente. El cliente revierte y puede recargar el dato actual.
+    updateQuery =
+      previousStage == null ? updateQuery.is('followup_stage', null) : updateQuery.eq('followup_stage', previousStage)
+    const { data: updated, error } = await updateQuery.select('id').maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'La oportunidad cambió en otra sesión. Recarga el tablero antes de volver a moverla.' },
+        { status: 409 }
+      )
+    }
+
+    const { error: auditError } = await sb.from('audit_logs').insert({
+      tenant_id: t.tenantId,
+      actor_user_id: t.userId,
+      entity_type: 'appointment',
+      entity_id: appointmentId,
+      action: 'followup_stage_update',
+      old_values: { followup_stage: appt.followup_stage, notes: appt.notes },
+      new_values: update,
+    })
+    if (auditError) console.error('[appointments/followup-stage] audit_logs:', auditError.message)
     return NextResponse.json({ ok: true, notes: typeof update.notes === 'string' ? update.notes : undefined })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })

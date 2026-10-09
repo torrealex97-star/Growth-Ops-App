@@ -65,6 +65,13 @@ type AppointmentCallInfo = {
   ai_lead_score: number | null
 }
 
+type AppointmentCandidate = {
+  id: string
+  appointment_datetime: string
+  status: string
+  calendar_name: string | null
+}
+
 const DEFAULT_COMMISSION_PERCENT: Record<'setter' | 'closer', number> = {
   setter: 5,
   closer: 10,
@@ -117,6 +124,7 @@ export default function SaleDetailPage() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [editSaving, setEditSaving] = useState(false)
   const [teamUsers, setTeamUsers] = useState<{ id: string; full_name: string; role: string }[]>([])
+  const [appointmentCandidates, setAppointmentCandidates] = useState<AppointmentCandidate[]>([])
   const [editForm, setEditForm] = useState({
     setter_id: 'none',
     closer_id: 'none',
@@ -126,6 +134,7 @@ export default function SaleDetailPage() {
     gross_amount: '',
     status: 'active',
     notes: '',
+    appointment_id: 'none',
   })
   const [refundAmount, setRefundAmount] = useState('')
   const [refundReason, setRefundReason] = useState('')
@@ -239,6 +248,23 @@ export default function SaleDetailPage() {
 
     const saleData = saleRes.data as SaleWithRelations
     setSale(saleData)
+    if (saleData.contact_id) {
+      const { data: candidates, error: candidatesError } = await supabase
+        .from('appointments')
+        .select('id, appointment_datetime, status, calendar_name')
+        .eq('tenant_id', tenantId)
+        .eq('contact_id', saleData.contact_id)
+        .order('appointment_datetime', { ascending: false })
+        .limit(20)
+      if (candidatesError) {
+        toast.error('No se pudieron cargar las agendas candidatas', { description: candidatesError.message })
+        setAppointmentCandidates([])
+      } else {
+        setAppointmentCandidates((candidates ?? []) as AppointmentCandidate[])
+      }
+    } else {
+      setAppointmentCandidates([])
+    }
     setTeamUsers(
       ((usersRes.data ?? []) as { id: string; full_name: string; roles?: { key?: string } }[]).map((u) => ({
         id: u.id,
@@ -309,6 +335,7 @@ export default function SaleDetailPage() {
       gross_amount: String(sale.gross_amount ?? ''),
       status: sale.status ?? 'active',
       notes: sale.notes ?? '',
+      appointment_id: sale.appointment_id ?? 'none',
     })
     setShowEditDialog(true)
   }
@@ -333,6 +360,7 @@ export default function SaleDetailPage() {
         gross_amount: editForm.gross_amount || sale.gross_amount,
         status: editForm.status,
         notes: editForm.notes,
+        appointment_id: editForm.appointment_id,
       }),
     })
     const data = await res.json().catch(() => ({}))
@@ -1391,6 +1419,29 @@ export default function SaleDetailPage() {
           </DialogHeader>
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="text-xs text-muted-foreground">Agenda que originó la venta</Label>
+                <Select
+                  value={editForm.appointment_id}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, appointment_id: v }))}
+                >
+                  <SelectTrigger className="bg-muted border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="none">Sin agenda vinculada</SelectItem>
+                    {appointmentCandidates.map((appointment) => (
+                      <SelectItem key={appointment.id} value={appointment.id}>
+                        {formatDate(appointment.appointment_datetime)} · {appointment.status}
+                        {appointment.calendar_name ? ` · ${appointment.calendar_name}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-3xs text-muted-foreground">
+                  Solo aparecen agendas del mismo contacto. Cambiarla queda auditado y no modifica importes.
+                </p>
+              </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Setter</Label>
                 <Select value={editForm.setter_id} onValueChange={(v) => setEditForm((f) => ({ ...f, setter_id: v }))}>

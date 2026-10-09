@@ -27,6 +27,8 @@ import { readEnum } from '@/lib/filters/url-state'
 import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/database'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
+import { appointmentLeadScore } from '@/lib/appointments/lead-score'
+import type { LeadScore } from '@/lib/metrics/cualificacion'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
@@ -101,6 +103,13 @@ function timeAgo(dateStr: string | null | undefined): string {
   if (diffMonth < 12) return `hace ${diffMonth} mes${diffMonth === 1 ? '' : 'es'}`
   const diffYear = Math.floor(diffMonth / 12)
   return `hace ${diffYear} año${diffYear === 1 ? '' : 's'}`
+}
+
+const SCORE_STYLES: Record<LeadScore['nivel'], string> = {
+  alto: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  medio: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  bajo: 'bg-red-500/15 text-red-300 border-red-500/30',
+  sin_datos: 'bg-muted text-muted-foreground border-border',
 }
 
 export default function SeguimientoPage() {
@@ -275,7 +284,7 @@ export default function SeguimientoPage() {
       const res = await fetch(`/api/${tenant}/evergreen/appointments/followup-stage`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId, followupStage, reason }),
+        body: JSON.stringify({ appointmentId, followupStage, previousStage: prevStage, reason }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error || 'No se pudo actualizar la etapa')
@@ -551,92 +560,106 @@ export default function SeguimientoPage() {
                   {stageAppts.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-6">Sin agendas en esta etapa</p>
                   ) : (
-                    stageAppts.map((a) => (
-                      <article
-                        key={a.id}
-                        draggable={canChangeStatus && savingStageId !== a.id}
-                        onDragStart={(event) => {
-                          setDraggingAppointmentId(a.id)
-                          event.dataTransfer.effectAllowed = 'move'
-                          event.dataTransfer.setData('text/plain', a.id)
-                        }}
-                        onDragEnd={() => {
-                          setDraggingAppointmentId(null)
-                          setDragOverStage(null)
-                        }}
-                        className={`group rounded-lg border border-border bg-card p-3 transition-colors hover:border-brand-500/50 ${
-                          canChangeStatus ? 'cursor-grab active:cursor-grabbing' : ''
-                        } ${draggingAppointmentId === a.id ? 'opacity-40' : ''}`}
-                      >
-                        <div className="flex items-start gap-1.5">
-                          {canChangeStatus && (
-                            <GripVertical
-                              aria-hidden="true"
-                              className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60"
-                            />
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedAppointment(a)
-                              setSheetOpen(true)
-                            }}
-                            className="min-w-0 flex-1 text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                          >
-                            <span className="block text-sm font-medium text-foreground truncate">
-                              {a.contacts?.full_name || 'Sin nombre'}
-                            </span>
-                            <span className="block text-xs text-muted-foreground truncate">
-                              {a.contacts?.phone || '—'}
-                            </span>
-                          </button>
-                        </div>
-                        <p className="text-2xs text-muted-foreground mt-1.5">
-                          {STATUS_LABELS_LOCAL[a.status] || a.status}
-                        </p>
-                        {(a.closer?.full_name || a.setter?.full_name) && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <UserIcon className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span className="text-2xs text-muted-foreground truncate">
-                              {a.closer?.full_name || a.setter?.full_name}
-                            </span>
-                          </div>
-                        )}
-                        {a.notes && <p className="text-2xs text-muted-foreground mt-1.5 line-clamp-2">{a.notes}</p>}
-                        <p className="text-2xs text-muted-foreground mt-1.5 flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {timeAgo(a.last_contacted_at)}
-                        </p>
-                        {canChangeStatus && (
-                          <Select
-                            value={a.followup_stage ?? 'sin_clasificar'}
-                            disabled={savingStageId === a.id}
-                            onValueChange={(value) =>
-                              handleFollowupStageChange(
-                                a.id,
-                                value === 'sin_clasificar'
-                                  ? null
-                                  : (value as AppointmentWithRelations['followup_stage'])
-                              )
-                            }
-                          >
-                            <SelectTrigger
-                              aria-label={`Mover ${a.contacts?.full_name || 'contacto'} a otra etapa`}
-                              className="mt-2 h-8 w-full border-border bg-muted/40 text-xs"
+                    stageAppts.map((a) => {
+                      const leadScore = appointmentLeadScore(a)
+                      return (
+                        <article
+                          key={a.id}
+                          draggable={canChangeStatus && savingStageId !== a.id}
+                          onDragStart={(event) => {
+                            setDraggingAppointmentId(a.id)
+                            event.dataTransfer.effectAllowed = 'move'
+                            event.dataTransfer.setData('text/plain', a.id)
+                          }}
+                          onDragEnd={() => {
+                            setDraggingAppointmentId(null)
+                            setDragOverStage(null)
+                          }}
+                          className={`group rounded-lg border border-border bg-card p-3 transition-colors hover:border-brand-500/50 ${
+                            canChangeStatus ? 'cursor-grab active:cursor-grabbing' : ''
+                          } ${draggingAppointmentId === a.id ? 'opacity-40' : ''}`}
+                        >
+                          <div className="flex items-start gap-1.5">
+                            {canChangeStatus && (
+                              <GripVertical
+                                aria-hidden="true"
+                                className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60"
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedAppointment(a)
+                                setSheetOpen(true)
+                              }}
+                              className="min-w-0 flex-1 text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                             >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border">
-                              <SelectItem value="sin_clasificar">Sin clasificar</SelectItem>
-                              {Object.entries(FOLLOWUP_STAGE_LABELS).map(([value, stageLabel]) => (
-                                <SelectItem key={value} value={value}>
-                                  {stageLabel}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </article>
-                    ))
+                              <span className="block text-sm font-medium text-foreground truncate">
+                                {a.contacts?.full_name || 'Sin nombre'}
+                              </span>
+                              <span className="block text-xs text-muted-foreground truncate">
+                                {a.contacts?.phone || '—'}
+                              </span>
+                            </button>
+                          </div>
+                          <p className="text-2xs text-muted-foreground mt-1.5">
+                            {STATUS_LABELS_LOCAL[a.status] || a.status}
+                          </p>
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-3xs font-medium ${SCORE_STYLES[leadScore.nivel]}`}
+                              title={leadScore.dimensiones.map((item) => item.motivo).join(' ')}
+                            >
+                              Score {leadScore.puntuacion === null ? 'sin datos' : `${leadScore.puntuacion}/100`}
+                            </span>
+                            {leadScore.puntuacion !== null && (
+                              <span className="text-3xs text-muted-foreground">Confianza {leadScore.confianza}</span>
+                            )}
+                          </div>
+                          {(a.closer?.full_name || a.setter?.full_name) && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <UserIcon className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span className="text-2xs text-muted-foreground truncate">
+                                {a.closer?.full_name || a.setter?.full_name}
+                              </span>
+                            </div>
+                          )}
+                          {a.notes && <p className="text-2xs text-muted-foreground mt-1.5 line-clamp-2">{a.notes}</p>}
+                          <p className="text-2xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {timeAgo(a.last_contacted_at)}
+                          </p>
+                          {canChangeStatus && (
+                            <Select
+                              value={a.followup_stage ?? 'sin_clasificar'}
+                              disabled={savingStageId === a.id}
+                              onValueChange={(value) =>
+                                handleFollowupStageChange(
+                                  a.id,
+                                  value === 'sin_clasificar'
+                                    ? null
+                                    : (value as AppointmentWithRelations['followup_stage'])
+                                )
+                              }
+                            >
+                              <SelectTrigger
+                                aria-label={`Mover ${a.contacts?.full_name || 'contacto'} a otra etapa`}
+                                className="mt-2 h-8 w-full border-border bg-muted/40 text-xs"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-card border-border">
+                                <SelectItem value="sin_clasificar">Sin clasificar</SelectItem>
+                                {Object.entries(FOLLOWUP_STAGE_LABELS).map(([value, stageLabel]) => (
+                                  <SelectItem key={value} value={value}>
+                                    {stageLabel}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </article>
+                      )
+                    })
                   )}
                 </div>
               </section>
@@ -669,6 +692,7 @@ export default function SeguimientoPage() {
               ) : (
                 filtered.map((a) => {
                   const qualificationEntries = getQualificationEntries(a.qualification as Qualification | null)
+                  const leadScore = appointmentLeadScore(a)
                   const notesValue = notesDraft[a.id] ?? a.notes ?? ''
                   return (
                     <TableRow key={a.id} className="border-border hover:bg-card/50">
@@ -681,7 +705,13 @@ export default function SeguimientoPage() {
                         <p>{a.closer?.full_name || '—'}</p>
                       </TableCell>
                       <TableCell className="text-sm text-foreground">
-                        {STATUS_LABELS_LOCAL[a.status] || a.status}
+                        <p>{STATUS_LABELS_LOCAL[a.status] || a.status}</p>
+                        <span
+                          className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-3xs font-medium ${SCORE_STYLES[leadScore.nivel]}`}
+                          title={leadScore.dimensiones.map((item) => item.motivo).join(' ')}
+                        >
+                          Score {leadScore.puntuacion === null ? 'sin datos' : `${leadScore.puntuacion}/100`}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Select
