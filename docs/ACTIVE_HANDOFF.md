@@ -1,3 +1,18 @@
+# CERRADO EN RAMA · Auditoría de estabilidad VSL (9-oct-2026, Codex)
+
+- **Rama:** `codex/vsl-production-audit`, creada desde `main` después del PR #423.
+- **Producción auditada:** escritorio y viewport móvil 390×844; consola sin errores, rutas de vídeos,
+  resumen y métricas respondiendo 200. First Meaningful Paint observado ~1,24 s.
+- **Bugs corregidos:** una caída de red al cargar la biblioteca ya no deja skeleton infinito;
+  el skeleton móvil ya no ocupa 430 px; cambiar de VSL reinicia correctamente el estado del
+  reproductor; desactivar autoplay en el editor vuelve al poster sin guardar; el motion poster se
+  reinicia al cambiar fuente/configuración. El editor explica que autoplay oculta la portada.
+- **Rendimiento/accesibilidad:** imágenes del poster se decodifican de forma asíncrona; se conserva
+  poster-first, ahorro de datos, reduced motion y cero fragmentos HLS antes del play público.
+- **TESTED:** typecheck PASS; lint focal PASS (solo avisos históricos de `<img>` deliberado para
+  Bunny); VSL focal 12/12 PASS; suite completa 1.531 PASS, 3 omitidas y 0 fallos; build PASS.
+- **Pendiente:** CI/Preview, merge y smoke final de producción.
+
 # CERRADO EN RAMA · VSL motion poster y play optimizado (9-oct-2026, Codex)
 
 - **Rama única:** `codex/vsl-dynamic-thumbnail`. Reutiliza Bunny; no cambia proveedor, esquema,

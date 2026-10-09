@@ -122,13 +122,21 @@ export function VslDashboard() {
 
   const loadVideos = useCallback(async () => {
     setLoading(true)
-    const r = await fetch(`/api/${tenant}/evergreen/vsl/videos`)
-    const d = await r.json().catch(() => ({}))
-    // Un fallo del API nunca se muestra como «sin vídeos» (error ≠ vacío).
-    setLoadError(!r.ok)
-    setVideos(r.ok ? d.videos || [] : [])
-    setLoading(false)
-    if (!selected && d.videos?.[0]) setSelected(d.videos[0].slug)
+    setLoadError(false)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/vsl/videos`)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error('No se pudo cargar la biblioteca')
+      const nextVideos = d.videos || []
+      setVideos(nextVideos)
+      if (!selected && nextVideos[0]) setSelected(nextVideos[0].slug)
+    } catch {
+      // Un fallo de red nunca se interpreta como «sin vídeos» ni deja el skeleton infinito.
+      setLoadError(true)
+      setVideos([])
+    } finally {
+      setLoading(false)
+    }
   }, [selected, tenant])
 
   useEffect(() => {
@@ -216,7 +224,7 @@ export function VslDashboard() {
 
       {loading && (
         <div className="grid gap-5 lg:grid-cols-[248px_minmax(0,1fr)]" aria-label="Cargando vídeos">
-          <Skeleton className="h-[430px] rounded-xl" />
+          <Skeleton className="h-28 rounded-xl lg:h-[430px]" />
           <div className="space-y-4">
             <Skeleton className="aspect-video w-full rounded-xl" />
             <Skeleton className="h-28 w-full rounded-xl" />
@@ -348,6 +356,7 @@ export function VslDashboard() {
 
             <div className="overflow-hidden rounded-xl border border-border/70 bg-black shadow-2xl shadow-black/20">
               <VslPlayer
+                key={selectedVideo.id}
                 preview
                 video={{
                   tenant,
@@ -986,6 +995,12 @@ function VideoForm({
                   La animación automática necesita una fuente Bunny. Mientras tanto se usará la imagen fija.
                 </p>
               )}
+              {config.autoplay && (
+                <p className="text-xs text-amber-300">
+                  Autoplay reproduce el vídeo directamente y oculta la portada. Desactívalo para mostrar la miniatura y
+                  el botón de play.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -1000,6 +1015,7 @@ function VideoForm({
           {sourceUrl.trim() ? (
             <div className="mt-1 overflow-hidden rounded-lg">
               <VslPlayer
+                key={`${initial.id || 'new'}:${sourceUrl}`}
                 preview
                 video={{
                   tenant,

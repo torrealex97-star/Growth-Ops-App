@@ -145,6 +145,7 @@ export function VslPlayer({
   // La portada estática pinta primero. El preview animado solo se solicita cuando el player entra
   // en viewport y el dispositivo no ha pedido ahorro de datos ni reducción de movimiento.
   useEffect(() => {
+    setMotionPosterReady(false)
     const container = containerRef.current
     if (!container || !motionPoster || cfg.autoplay) return
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
@@ -164,6 +165,15 @@ export function VslPlayer({
       if (timer !== null) window.clearTimeout(timer)
     }
   }, [cfg.autoplay, motionPoster])
+
+  // El editor promete una vista previa viva. Si se desactiva autoplay después de que el vídeo
+  // haya arrancado, vuelve inmediatamente al poster sin guardar ni recargar la página.
+  useEffect(() => {
+    if (!preview || cfg.autoplay) return
+    const el = videoRef.current
+    if (el && !el.paused) el.pause()
+    setFirstFrame(false)
+  }, [cfg.autoplay, preview])
 
   // ---- ¿Ya estaba viendo el vídeo? -> ofrecer continuar / reiniciar ---------
   useEffect(() => {
@@ -550,8 +560,7 @@ export function VslPlayer({
     } else {
       startMuted()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready])
+  }, [cfg.autoplay, cfg.tryAudioAutoplay, ready])
 
   // ---- Continuar / reiniciar tras haber visto antes -------------------------
   const resumeFrom = (sec: number) => {
@@ -757,13 +766,20 @@ export function VslPlayer({
           className="group absolute inset-0 z-30 flex items-center justify-center overflow-hidden bg-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
         >
           {poster && (
-            <img src={poster} alt="" fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
+            <img
+              src={poster}
+              alt=""
+              fetchPriority="high"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           )}
           {motionPosterReady && motionPoster && (
             <img
               src={motionPoster}
               alt=""
               aria-hidden="true"
+              decoding="async"
               className="absolute inset-0 h-full w-full object-cover motion-reduce:hidden"
             />
           )}
