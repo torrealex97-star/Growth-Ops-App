@@ -21,6 +21,9 @@
   migración de acceso en producción y smoke real de eventos. Antes de escala alta, PR-2 debe añadir
   rollups diarios: la curva precisa aún agrega intervalos en lectura y no debe convertirse en la
   estrategia definitiva para millones de eventos.
+- **CI PR #418:** la primera pasada detectó correctamente drift en `database-generated.ts` porque la
+  foundation ya estaba aplicada. El espejo fue regenerado desde el OpenAPI vivo (120 relaciones) y
+  añadido a la rama; no se editaron tipos a mano.
 
 # CERRADO · VSL Intelligence UI: reproductor primero (PR #416, 9-oct-2026, Codex)
 
