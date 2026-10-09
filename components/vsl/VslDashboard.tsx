@@ -548,7 +548,7 @@ export function VslDashboard() {
                         {(metrics.leadsOcultos ?? 0) > 0 ? (
                           <EmptyAnalysis
                             title="Datos protegidos"
-                            description={`Hay ${metrics.leadsOcultos} espectadores identificados, pero este rol no puede ver sus datos personales.`}
+                            description={`Hay ${metrics.leadsOcultos} espectadores identificados. Ver sus datos personales requiere acceso a Contactos.`}
                           />
                         ) : metrics.leads.length === 0 ? (
                           <EmptyAnalysis
