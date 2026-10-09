@@ -99,6 +99,28 @@
   build de producción PASS. Pendiente CI, merge, despliegue y una entrega real de GHL para evidencia
   externa; la API oficial exige `contacts.readonly` y token de subcuenta.
 
+# EN CURSO · Servidor MCP propio — PR #421 (9-oct-2026, Codex)
+
+- **PR abierta:** https://github.com/torrealex97-star/growth-ops-app/pull/421 (`codex/mcp-server`).
+  **Quality Gate VERDE y PR MERGEABLE/CLEAN** en CI (run `37926663921`, SHA head): format, lint,
+  typecheck, dead-code, unitarias (incluidas 10 regresiones MCP nuevas), build, smoke E2E, gitleaks
+  y Release gate PASS. Rebasada dos veces sobre `origin/main` (conflictos del tablero resueltos
+  conservando ambos bloques) y un push vacío para refrescar el rollup de `cancel-in-progress`.
+  Correcciones durante CI: formato Prettier, tipo `McpTokenRow` ampliado y tipado del callback de
+  `sql.begin` — sin cambios de lógica.
+- **Alcance cubierto de la SPEC-02 MCP:** servidor único Streamable HTTP (no por tenant) con OAuth
+  2.1 por usuario — identidad verificada → memberships → RLS, sin service-role expuesto al modelo,
+  read-only real y aislamiento entre subcuentas por las policies existentes. Fase 0 audita el repo;
+  PR-1 y PR-2 de la SPEC quedan cubiertas por esta rama. El catálogo curado de herramientas de
+  negocio (Fase 3), la UI «Conectar con IA externa» en Integraciones (Fase 5), las pruebas reales
+  con Claude/ChatGPT (Fase 8) y la paridad de KPIs con el dashboard (Fase 9) quedan como PR-3,
+  PR-6, PR-7 y PR-9 siguientes — la spec pide además que el MVP no exponga SQL arbitrario, por lo
+  que `query_db` debe restringirse a las tools curadas antes de comercializar.
+- **Siguiente exacto:** TRAS FUSIONAR — (1) aplicar la migración con dry-run previo y registrarla;
+  (2) crear `MCP_JWT_SECRET` en Vercel (≥32 chars); (3) conectar el connector en ChatGPT/Claude
+  (Fase 8 de la SPEC) y documentar limitaciones de plan/aprobación; (4) PR-3 con el catálogo curado
+  reutilizando `lib/metrics` del repo. Docs en `docs/mcp-server.md`.
+
 # CERRADO EN RAMA · Histórico Calendly reanudable y atribución auditada (9-oct-2026, Codex)
 
 - **Rama única:** `codex/calendly-history-attribution`, desde `main` posterior al PR #424. Alcance:
@@ -119,30 +141,7 @@
   3 omitidas y 0 fallos; build de producción PASS. Pendiente CI, merge, despliegue y smoke autenticado
   del recorrido completo del botón.
 
-# CERRADO Y DESPLEGADO · Auditoría de estabilidad VSL (PR #424, 9-oct-2026, Codex)
-
-# EN CURSO · Servidor MCP propio — PR #421 (9-oct-2026, Codex)
-
-
-- **PR abierta:** https://github.com/torrealex97-star/growth-ops-app/pull/421 (`codex/mcp-server`).
-  **Quality Gate VERDE** en CI (run `37922684713`, SHA `90c6ca25`): format, lint, typecheck, dead-code,
-  unitarias (incluidas 10 regresiones MCP nuevas), build, smoke E2E, gitleaks y Release gate PASS.
-  La rama quedó rebasada sobre `origin/main` `4ae67e4e` resolviendo el conflicto del tablero (ambos
-  bloques conservados). Correcciones durante CI: formato Prettier (99 líneas), tipo `McpTokenRow`
-  ampliado y tipado del callback de `sql.begin` — sin cambios de lógica.
-- **Implementado:** servidor MCP (JSON-RPC streamable) en `/api/mcp` con tools `list_tenants`,
-  `query_db` (SQL read-only con límites) y `describe_table`; OAuth 2.1 completo (PKCE S256,
-  códigos de un solo uso de 60 s, access de 15 min revocable por jti, refresh rotativo 30 días,
-  registro dinámico y pantalla de consentimiento que exige sesión y fija `owner_user_id`);
-  ejecutor SQL en 4 capas (rol `mcp_reader` NOLOGIN solo SELECT, `SET LOCAL ROLE` dentro de
-  transacción READ ONLY con `request.jwt.claims`, timeout 8 s, máx 500 filas) que rechaza
-  multi-sentencia y suplantación de sesión vía `set_config`. Migración `20261009160000` con tres
-  tablas `mcp_oauth_*` (RLS por propietario, credenciales solo hash SHA-256).
-- **Pendiente tras fusionar (Alex):** aplicar la migración con dry-run previo y registrarla;
-  crear `MCP_JWT_SECRET` en Vercel (≥32 chars); conectar el connector en ChatGPT/Claude con
-  `https://app.scalixsystems.com/api/mcp` y aprobar el consentimiento. Docs en `docs/mcp-server.md`.
-
-# CERRADO Y DESPLEGADO · Auditoría de estabilidad VSL (PR #424, 9-oct-2026, Codex)
+# CERRADO Y DESPLEGADO · Auditoría de estabilidad VSL (PR #424, 9-oct-2026, Codex)# CERRADO Y DESPLEGADO · Auditoría de estabilidad VSL (PR #424, 9-oct-2026, Codex)
 
 - **Rama:** `codex/vsl-production-audit`, creada desde `main` después del PR #423.
 - **Producción auditada:** escritorio y viewport móvil 390×844; consola sin errores, rutas de vídeos,
