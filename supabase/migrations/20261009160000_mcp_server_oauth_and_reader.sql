@@ -67,8 +67,8 @@ CREATE INDEX IF NOT EXISTS mcp_oauth_clients_owner_idx ON public.mcp_oauth_clien
 -- RLS: el propietario lista/borra SUS clientes y sesiones (futuras pantallas de gestión);
 -- las demás operaciones viven en el servidor con service_role.
 ALTER TABLE public.mcp_oauth_clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.mcp_oauth_codes   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.mcp_oauth_tokens  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mcp_oauth_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mcp_oauth_tokens ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS mcp_clients_owner_select ON public.mcp_oauth_clients;
 CREATE POLICY mcp_clients_owner_select ON public.mcp_oauth_clients
