@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DEFAULT_CONFIG, derivadosDeSource, type VslConfig } from '@/lib/vsl/types'
 import { VslPlayer } from '@/components/vsl/VslPlayer'
 import {
@@ -21,11 +23,14 @@ import {
   Loader2,
   Play,
   Eye,
-  Users,
   Flag,
   Percent,
   Video,
   AlertTriangle,
+  BarChart3,
+  Code2,
+  RefreshCw,
+  Settings2,
 } from 'lucide-react'
 
 interface Video {
@@ -93,6 +98,8 @@ export function VslDashboard() {
   const [editing, setEditing] = useState<Partial<Video> | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [metricsError, setMetricsError] = useState(false)
   const [resumen, setResumen] = useState<Resumen | null>(null)
   const [copied, setCopied] = useState(false)
   const [previewSlug, setPreviewSlug] = useState<string | null>(null) // hover: preview animado
@@ -123,8 +130,17 @@ export function VslDashboard() {
   const loadMetrics = useCallback(
     async (slug: string) => {
       setMetrics(null)
-      const r = await fetch(`/api/${tenant}/evergreen/vsl/metrics/${slug}`)
-      if (r.ok) setMetrics(await r.json())
+      setMetricsError(false)
+      setMetricsLoading(true)
+      try {
+        const r = await fetch(`/api/${tenant}/evergreen/vsl/metrics/${slug}`)
+        if (!r.ok) throw new Error('No se pudieron cargar las métricas')
+        setMetrics(await r.json())
+      } catch {
+        setMetricsError(true)
+      } finally {
+        setMetricsLoading(false)
+      }
     },
     [tenant]
   )
@@ -156,87 +172,71 @@ export function VslDashboard() {
     loadVideos()
   }
 
+  const selectedVideo = videos.find((video) => video.slug === selected) ?? null
+
   return (
-    <div className="dashboard-surface mx-auto max-w-6xl space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">VSL / Vídeos</h1>
-          <p className="text-sm text-muted-foreground">
-            Aloja tu VSL, incrústalo en la landing y trackea toda la retención.
+    <div className="dashboard-surface mx-auto max-w-7xl space-y-6 pb-12">
+      <header className="flex flex-col gap-4 border-b border-border/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-brand-400">
+            <BarChart3 className="h-3.5 w-3.5" /> Video intelligence
+          </div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">VSL Analytics</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Reproduce, configura y entiende dónde mantiene la atención cada vídeo.
           </p>
         </div>
-        <Button onClick={() => setEditing({ config: { ...DEFAULT_CONFIG } })} style={{ backgroundColor: BLUE }}>
-          <Plus className="mr-1 h-4 w-4" /> Nuevo vídeo
-        </Button>
-      </div>
+        <div className="flex items-center gap-3">
+          {resumen && (
+            <div className="hidden items-center gap-3 text-xs text-muted-foreground md:flex">
+              <span>{resumen.videos} vídeos</span>
+              <span className="h-1 w-1 rounded-full bg-border" />
+              <span>{resumen.plays} reproducciones</span>
+            </div>
+          )}
+          <Button onClick={() => setEditing({ config: { ...DEFAULT_CONFIG } })}>
+            <Plus className="mr-1.5 h-4 w-4" /> Nuevo vídeo
+          </Button>
+        </div>
+      </header>
 
-      {/* Resumen de la subcuenta: KPIs agregados de todos los VSL (conectado a las métricas) */}
-      {resumen && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <Kpi icon={Video} label="Vídeos" value={resumen.videos} />
-          <Kpi icon={Eye} label="Impresiones" value={resumen.impressions} />
-          <Kpi
-            icon={Play}
-            label="Play rate"
-            value={resumen.impressions > 0 ? `${resumen.playRate}%` : '—'}
-            sub={`${resumen.plays} plays`}
-          />
-          <Kpi icon={Percent} label="% medio visto" value={resumen.plays > 0 ? `${resumen.avgPercent}%` : '—'} />
-          <Kpi
-            icon={Flag}
-            label="Completado"
-            value={resumen.plays > 0 ? `${resumen.completionRate}%` : '—'}
-            sub={`${resumen.completed} llegan al final`}
-          />
+      {loading && (
+        <div className="grid gap-5 lg:grid-cols-[248px_minmax(0,1fr)]" aria-label="Cargando vídeos">
+          <Skeleton className="h-[430px] rounded-xl" />
+          <div className="space-y-4">
+            <Skeleton className="aspect-video w-full rounded-xl" />
+            <Skeleton className="h-28 w-full rounded-xl" />
+          </div>
         </div>
       )}
 
-      {/* Selector de vídeos: tarjetas con miniatura y preview animado de Bunny al pasar el ratón */}
-      <div className="flex flex-wrap gap-2">
-        {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-        {videos.map((v) => {
-          const d = derivadosDeSource(v.source_url)
-          return (
-            <button
-              key={v.id}
-              onClick={() => setSelected(v.slug)}
-              onMouseEnter={() => d.preview && setPreviewSlug(v.slug)}
-              onMouseLeave={() => setPreviewSlug((s) => (s === v.slug ? null : s))}
-              className={`group relative w-44 overflow-hidden rounded-lg border text-left transition ${
-                selected === v.slug
-                  ? 'border-brand-500 bg-brand-500/15 text-foreground'
-                  : 'dashboard-card text-foreground hover:border-white/20'
-              }`}
-            >
-              <div className="relative aspect-video w-full overflow-hidden bg-black">
-                {d.thumbnail ? (
-                  <img src={d.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover opacity-90" />
-                ) : v.poster_url ? (
-                  <img src={v.poster_url} alt="" loading="lazy" className="h-full w-full object-cover opacity-90" />
-                ) : null}
-                {d.preview && previewSlug === v.slug && (
-                  <img src={d.preview} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                )}
-                {!v.source_url && (
-                  <span className="absolute right-1 top-1 flex items-center gap-1 rounded bg-red-950/90 px-1.5 py-0.5 text-2xs font-medium text-red-300">
-                    <AlertTriangle className="h-3 w-3" /> Sin fuente
-                  </span>
-                )}
-              </div>
-              <div className="truncate px-3 py-2 text-sm">{v.name}</div>
-            </button>
-          )
-        })}
-        {!loading && loadError && (
-          <p className="text-sm text-destructive">
-            No se pudieron cargar los vídeos (error del servidor). Comprueba la conexión a la base de datos e inténtalo
-            de nuevo.
+      {!loading && loadError && (
+        <div className="flex min-h-72 flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 px-6 text-center">
+          <AlertTriangle className="mb-3 h-7 w-7 text-destructive" />
+          <h2 className="font-semibold text-foreground">No pudimos cargar la biblioteca</h2>
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">
+            La conexión falló antes de recibir los vídeos. No se ha interpretado el error como una biblioteca vacía.
           </p>
-        )}
-        {!loading && !loadError && videos.length === 0 && (
-          <p className="text-sm text-muted-foreground">Aún no hay vídeos. Crea el primero.</p>
-        )}
-      </div>
+          <Button className="mt-4" variant="outline" onClick={loadVideos}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Reintentar
+          </Button>
+        </div>
+      )}
+
+      {!loading && !loadError && videos.length === 0 && (
+        <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40 px-6 text-center">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-brand-500/10 text-brand-400">
+            <Video className="h-5 w-5" />
+          </div>
+          <h2 className="text-lg font-semibold text-foreground">Crea tu primera VSL</h2>
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">
+            Sube el vídeo, revisa el reproductor real y copia el embed cuando esté listo.
+          </p>
+          <Button className="mt-5" onClick={() => setEditing({ config: { ...DEFAULT_CONFIG } })}>
+            <Plus className="mr-2 h-4 w-4" /> Añadir vídeo
+          </Button>
+        </div>
+      )}
 
       {editing && (
         <VideoForm
@@ -250,285 +250,457 @@ export function VslDashboard() {
         />
       )}
 
-      {selected && metrics && (
-        <>
-          {/* Snippet de embed */}
-          <Card className="dashboard-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base text-foreground">Código para la landing</CardTitle>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const v = videos.find((x) => x.slug === selected)
-                    if (v) setEditing(v)
-                  }}
-                >
-                  Editar / configurar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={copySnippet}
-                  disabled={!videos.find((x) => x.slug === selected)?.source_url}
-                >
-                  {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
-                  {copied ? 'Copiado' : 'Copiar'}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {!videos.find((x) => x.slug === selected)?.source_url && (
-                <p className="flex items-start gap-2 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  Este vídeo todavía no tiene un archivo de fuente. Si pegas este código ahora, el reproductor mostrará
-                  &quot;Este vídeo aún no tiene fuente configurada&quot;. Pulsa &quot;Editar / configurar&quot; y sube
-                  el vídeo (o pega su URL de Bunny/.mp4) antes de compartir el enlace.
+      {!loading && !loadError && selectedVideo && (
+        <div className="grid items-start gap-5 lg:grid-cols-[248px_minmax(0,1fr)]">
+          <aside className="rounded-xl border border-border/70 bg-card/35 p-2 lg:sticky lg:top-20">
+            <div className="flex items-center justify-between px-2 pb-2 pt-1">
+              <span className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Biblioteca</span>
+              <span className="text-xs tabular-nums text-muted-foreground">{videos.length}</span>
+            </div>
+            <div className="space-y-1" role="list" aria-label="Vídeos disponibles">
+              {videos.map((video) => {
+                const derived = derivadosDeSource(video.source_url)
+                const active = selected === video.slug
+                return (
+                  <button
+                    key={video.id}
+                    type="button"
+                    onClick={() => setSelected(video.slug)}
+                    onMouseEnter={() => derived.preview && setPreviewSlug(video.slug)}
+                    onMouseLeave={() => setPreviewSlug((slug) => (slug === video.slug ? null : slug))}
+                    className={`group flex w-full gap-3 rounded-lg p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                      active
+                        ? 'bg-brand-500/10 text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    }`}
+                    aria-current={active ? 'true' : undefined}
+                  >
+                    <div className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-black">
+                      {derived.thumbnail || video.poster_url ? (
+                        <img
+                          src={
+                            derived.preview && previewSlug === video.slug
+                              ? derived.preview
+                              : derived.thumbnail || video.poster_url || ''
+                          }
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-white/35">
+                          <Video className="h-4 w-4" />
+                        </div>
+                      )}
+                      {!video.source_url && <span className="absolute inset-y-0 left-0 w-0.5 bg-destructive" />}
+                    </div>
+                    <div className="min-w-0 flex-1 py-0.5">
+                      <p className="truncate text-sm font-medium">{video.name}</p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {video.source_url
+                          ? video.duration_seconds > 0
+                            ? fmt(video.duration_seconds)
+                            : 'Lista'
+                          : 'Sin fuente'}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+
+          <main className="min-w-0 space-y-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate text-xl font-semibold tracking-tight text-foreground">
+                    {selectedVideo.name}
+                  </h2>
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${selectedVideo.source_url ? 'bg-emerald-400' : 'bg-destructive'}`}
+                  />
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {selectedVideo.source_url
+                    ? 'Vista previa segura · no altera las métricas'
+                    : 'Falta conectar el archivo de vídeo'}
                 </p>
-              )}
-              <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-foreground">{snippet}</pre>
-            </CardContent>
-          </Card>
-
-          {/* KPIs */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Kpi icon={Eye} label="Impresiones" value={metrics.totals.impressions} />
-            <Kpi
-              icon={Play}
-              label="Play rate"
-              value={metrics.totals.impressions > 0 ? `${metrics.totals.playRate}%` : '—'}
-              sub={`${metrics.totals.plays} plays`}
-            />
-            <Kpi
-              icon={Percent}
-              label="% medio visto"
-              value={metrics.totals.plays > 0 ? `${metrics.totals.avgPercent}%` : '—'}
-            />
-            <Kpi
-              icon={Flag}
-              label="Completado"
-              value={metrics.totals.plays > 0 ? `${metrics.totals.completionRate}%` : '—'}
-              sub={`${metrics.totals.completed} llegan al final`}
-            />
-          </div>
-
-          {/* Curva de retención */}
-          <Card className="dashboard-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base text-foreground">Retención (cuánta gente sigue viendo)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {metrics.totals.plays > 0 && metrics.retention.length > 1 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={metrics.retention} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="ret" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={BLUE} stopOpacity={0.55} />
-                        <stop offset="100%" stopColor={BLUE} stopOpacity={0.03} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis
-                      dataKey="sec"
-                      tickFormatter={fmt}
-                      stroke="hsl(var(--muted-foreground))"
-                      fontSize={11}
-                      minTickGap={40}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      tickFormatter={(v) => `${v}%`}
-                      stroke="hsl(var(--muted-foreground))"
-                      fontSize={11}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'hsl(var(--popover))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                      labelFormatter={(l) => `Min ${fmt(Number(l))}`}
-                      formatter={(v: any, _n, p: any) => [`${v}% · ${p.payload.viewers} personas`, 'Retención']}
-                    />
-                    <Area type="monotone" dataKey="pct" stroke={BLUE} strokeWidth={2} fill="url(#ret)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">Sin datos de visionado todavía.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Hitos de visión (25/50/75/95/100 %): paridad de reporting de Vidalytics/Wistia */}
-          <Card className="dashboard-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base text-foreground">Hitos de visión</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {metrics.milestones.map((m) => (
-                  <div key={m.pct} className="rounded-lg bg-black/30 px-3 py-2 text-center">
-                    <p className="text-lg font-semibold tabular-nums text-foreground">
-                      {metrics.totals.plays > 0 ? `${m.rate}%` : '—'}
-                    </p>
-                    <p className="text-2xs text-muted-foreground">llegan al {m.pct}%</p>
-                  </div>
-                ))}
               </div>
-            </CardContent>
-          </Card>
+              <Button size="sm" variant="outline" onClick={() => setEditing(selectedVideo)}>
+                <Settings2 className="mr-2 h-4 w-4" /> Configurar
+              </Button>
+            </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Puntos de caída */}
-            <Card className="dashboard-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base text-foreground">Mayores caídas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {metrics.drops.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {metrics.totals.plays > 0
-                      ? 'Sin caídas relevantes.'
-                      : 'Sin visionados suficientes para evaluar caídas.'}
-                  </p>
-                )}
-                {metrics.drops.map((d, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-lg bg-black/30 px-3 py-2 text-sm">
-                    <span className="text-foreground">
-                      Min <span className="font-semibold text-foreground">{fmt(d.sec)}</span>
-                    </span>
-                    <span className="text-muted-foreground">
-                      {d.from}% → {d.to}%
-                    </span>
-                    <span className="font-semibold text-brand-400">−{d.delta}%</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <div className="overflow-hidden rounded-xl border border-border/70 bg-black shadow-2xl shadow-black/20">
+              <VslPlayer
+                preview
+                video={{
+                  tenant,
+                  slug: selectedVideo.slug,
+                  source_url: selectedVideo.source_url,
+                  poster_url: selectedVideo.poster_url,
+                  duration_seconds: selectedVideo.duration_seconds,
+                  config: selectedVideo.config,
+                }}
+              />
+            </div>
 
-            {/* Dispositivos */}
-            <Card className="dashboard-card">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base text-foreground">Dispositivos</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {metrics.devices.map((d) => {
-                  const totalDev = metrics.devices.reduce((a, b) => a + b.n, 0) || 1
-                  const w = Math.round((d.n / totalDev) * 100)
-                  return (
-                    <div key={d.device}>
-                      <div className="mb-1 flex justify-between text-xs text-foreground">
-                        <span className="capitalize">{d.device}</span>
-                        <span>
-                          {d.n} ({w}%)
-                        </span>
+            {metricsLoading && (
+              <div className="space-y-4" aria-label="Cargando análisis">
+                <Skeleton className="h-10 w-80 max-w-full rounded-lg" />
+                <Skeleton className="h-36 w-full rounded-xl" />
+                <Skeleton className="h-80 w-full rounded-xl" />
+              </div>
+            )}
+
+            {metricsError && (
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                <div>
+                  <p className="font-medium text-foreground">El vídeo carga, pero sus métricas no</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Reintenta sin recargar toda la página.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => loadMetrics(selectedVideo.slug)}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> Reintentar
+                </Button>
+              </div>
+            )}
+
+            {metrics && !metricsLoading && (
+              <Tabs defaultValue="engagement" className="space-y-5">
+                <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border bg-transparent p-0">
+                  <TabsTrigger
+                    value="engagement"
+                    className="rounded-none border-b-2 border-transparent px-4 py-3 shadow-none data-[state=active]:border-brand-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                  >
+                    Engagement
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="audience"
+                    className="rounded-none border-b-2 border-transparent px-4 py-3 shadow-none data-[state=active]:border-brand-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                  >
+                    Audiencia
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="embed"
+                    className="rounded-none border-b-2 border-transparent px-4 py-3 shadow-none data-[state=active]:border-brand-500 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                  >
+                    Embed
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="engagement" className="space-y-5">
+                  <section className="grid gap-4 rounded-xl border border-border/70 bg-card/35 p-5 md:grid-cols-[minmax(220px,0.85fr)_minmax(0,2fr)]">
+                    <div className="flex flex-col justify-between border-b border-border pb-5 md:border-b-0 md:border-r md:pb-0 md:pr-5">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                          Promedio visto
+                        </p>
+                        <p className="mt-2 text-5xl font-semibold tracking-tight tabular-nums text-foreground">
+                          {metrics.totals.plays > 0 ? `${metrics.totals.avgPercent}%` : '—'}
+                        </p>
                       </div>
-                      <div className="h-2 rounded-full bg-white/10">
-                        <div className="h-full rounded-full" style={{ width: `${w}%`, backgroundColor: BLUE }} />
+                      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                        {metrics.totals.plays > 0
+                          ? 'Cuánto consume, de media, cada reproducción registrada.'
+                          : 'Aún no hay reproducciones válidas para medir engagement.'}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+                      <Metric label="Impresiones" value={metrics.totals.impressions} icon={Eye} />
+                      <Metric label="Reproducciones" value={metrics.totals.plays} icon={Play} />
+                      <Metric
+                        label="Play rate"
+                        value={metrics.totals.impressions > 0 ? `${metrics.totals.playRate}%` : '—'}
+                        icon={Percent}
+                      />
+                      <Metric
+                        label="Completado"
+                        value={metrics.totals.plays > 0 ? `${metrics.totals.completionRate}%` : '—'}
+                        icon={Flag}
+                      />
+                    </div>
+                  </section>
+
+                  <Card className="border-border/70 bg-card/35 shadow-none">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base text-foreground">Retención a lo largo del vídeo</CardTitle>
+                      <p className="text-sm text-muted-foreground">¿En qué momento deja de mirar la audiencia?</p>
+                    </CardHeader>
+                    <CardContent>
+                      {metrics.totals.plays > 0 && metrics.retention.length > 1 ? (
+                        <ResponsiveContainer width="100%" height={300}>
+                          <AreaChart data={metrics.retention} margin={{ top: 12, right: 8, left: -18, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="retention-fill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor={BLUE} stopOpacity={0.28} />
+                                <stop offset="100%" stopColor={BLUE} stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.55} />
+                            <XAxis
+                              dataKey="sec"
+                              tickFormatter={fmt}
+                              stroke="hsl(var(--muted-foreground))"
+                              fontSize={11}
+                              minTickGap={44}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <YAxis
+                              domain={[0, 100]}
+                              tickFormatter={(value) => `${value}%`}
+                              stroke="hsl(var(--muted-foreground))"
+                              fontSize={11}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                background: 'hsl(var(--popover))',
+                                border: '1px solid hsl(var(--border))',
+                                borderRadius: 10,
+                                fontSize: 12,
+                              }}
+                              labelFormatter={(label) => `Min ${fmt(Number(label))}`}
+                              formatter={(value, _name, item) => [
+                                `${value}% · ${item.payload.viewers} personas`,
+                                'Retención',
+                              ]}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="pct"
+                              stroke={BLUE}
+                              strokeWidth={2.5}
+                              fill="url(#retention-fill)"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <EmptyAnalysis
+                          title="Sin curva todavía"
+                          description="La retención aparecerá cuando existan reproducciones con progreso registrado."
+                        />
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <details className="group rounded-xl border border-border/70 bg-card/20">
+                    <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                      Ver hitos y puntos de caída
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">Detalle avanzado</span>
+                    </summary>
+                    <div className="grid gap-5 border-t border-border p-5 lg:grid-cols-2">
+                      <div>
+                        <h3 className="mb-3 text-sm font-medium text-foreground">Hitos de visión</h3>
+                        <div className="grid grid-cols-5 gap-2">
+                          {metrics.milestones.map((milestone) => (
+                            <div key={milestone.pct} className="rounded-lg bg-muted/45 px-2 py-3 text-center">
+                              <p className="font-semibold tabular-nums text-foreground">
+                                {metrics.totals.plays > 0 ? `${milestone.rate}%` : '—'}
+                              </p>
+                              <p className="mt-1 text-2xs text-muted-foreground">al {milestone.pct}%</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="mb-3 text-sm font-medium text-foreground">Mayores caídas</h3>
+                        <div className="space-y-2">
+                          {metrics.drops.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              Sin caídas relevantes con la muestra actual.
+                            </p>
+                          ) : (
+                            metrics.drops.map((drop) => (
+                              <div
+                                key={`${drop.sec}-${drop.delta}`}
+                                className="flex items-center justify-between rounded-lg bg-muted/45 px-3 py-2 text-sm"
+                              >
+                                <span className="font-medium text-foreground">{fmt(drop.sec)}</span>
+                                <span className="text-muted-foreground">
+                                  {drop.from}% → {drop.to}%
+                                </span>
+                                <span className="font-medium text-brand-400">−{drop.delta}%</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
                     </div>
-                  )
-                })}
-              </CardContent>
-            </Card>
-          </div>
+                  </details>
+                </TabsContent>
 
-          {/* Leads identificados */}
-          <Card className="dashboard-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base text-foreground">
-                <Users className="mr-1 inline h-4 w-4" /> Leads y dónde se quedan
-              </CardTitle>
-              <span className="text-xs text-muted-foreground">
-                {(metrics.leadsOcultos ?? 0) > 0 ? metrics.leadsOcultos : metrics.leads.length} identificados
-              </span>
-            </CardHeader>
-            <CardContent>
-              {(metrics.leadsOcultos ?? 0) > 0 ? (
-                // "No te toca" no es lo mismo que "no hay nadie": decirlo evita que alguien concluya
-                // que el vídeo no capta.
-                <p className="text-sm text-muted-foreground">
-                  Hay {metrics.leadsOcultos} personas identificadas, pero ver correos y nombres requiere acceso a
-                  Contactos. Las métricas de arriba sí los incluyen.
-                </p>
-              ) : metrics.leads.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nadie identificado aún. Llama a <code className="text-brand-400">tccVSL.identify(email)</code> al
-                  enviar el form.
-                </p>
-              ) : (
-                <div className="max-h-96 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-left text-xs text-muted-foreground">
-                      <tr>
-                        <th className="pb-2">Lead</th>
-                        <th className="pb-2">Visto</th>
-                        <th className="pb-2 text-right">Se queda en</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {metrics.leads.map((l, i) => (
-                        <tr key={i} className="border-t border-white/5">
-                          <td className="py-2">
-                            <div className="text-zinc-200">{l.email}</div>
-                            {l.name && <div className="text-xs text-muted-foreground">{l.name}</div>}
-                          </td>
-                          <td className="py-2">
-                            <div className="flex items-center gap-2">
-                              <div className="h-2 w-24 rounded-full bg-white/10">
-                                <div
-                                  className="h-full rounded-full"
-                                  style={{ width: `${l.pct}%`, backgroundColor: l.reachedEnd ? '#22c55e' : BLUE }}
-                                />
+                <TabsContent value="audience" className="space-y-5">
+                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(240px,0.7fr)]">
+                    <Card className="border-border/70 bg-card/35 shadow-none">
+                      <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
+                        <div>
+                          <CardTitle className="text-base text-foreground">Espectadores identificados</CardTitle>
+                          <p className="mt-1 text-sm text-muted-foreground">¿Quién vio el vídeo y hasta dónde llegó?</p>
+                        </div>
+                        <span className="text-sm tabular-nums text-muted-foreground">
+                          {(metrics.leadsOcultos ?? 0) > 0 ? metrics.leadsOcultos : metrics.leads.length}
+                        </span>
+                      </CardHeader>
+                      <CardContent>
+                        {(metrics.leadsOcultos ?? 0) > 0 ? (
+                          <EmptyAnalysis
+                            title="Datos protegidos"
+                            description={`Hay ${metrics.leadsOcultos} espectadores identificados. Ver sus datos personales requiere acceso a Contactos.`}
+                          />
+                        ) : metrics.leads.length === 0 ? (
+                          <EmptyAnalysis
+                            title="Nadie identificado todavía"
+                            description="Conecta identify(email) después del formulario para enlazar la visualización con el CRM."
+                          />
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[520px] text-sm">
+                              <thead className="text-left text-xs text-muted-foreground">
+                                <tr>
+                                  <th className="pb-3 font-medium">Espectador</th>
+                                  <th className="pb-3 font-medium">Visto</th>
+                                  <th className="pb-3 text-right font-medium">Último punto</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {metrics.leads.map((lead) => (
+                                  <tr key={`${lead.email}-${lead.updatedAt}`} className="border-t border-border/60">
+                                    <td className="py-3">
+                                      <p className="font-medium text-foreground">{lead.name || lead.email}</p>
+                                      {lead.name && <p className="text-xs text-muted-foreground">{lead.email}</p>}
+                                    </td>
+                                    <td className="py-3">
+                                      <div className="flex items-center gap-3">
+                                        <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
+                                          <div
+                                            className={`h-full rounded-full ${lead.reachedEnd ? 'bg-emerald-400' : 'bg-brand-500'}`}
+                                            style={{ width: `${lead.pct}%` }}
+                                          />
+                                        </div>
+                                        <span className="text-xs tabular-nums text-foreground">{lead.pct}%</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-3 text-right tabular-nums text-foreground">
+                                      {lead.reachedEnd ? 'Final' : fmt(lead.maxPosition)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card className="border-border/70 bg-card/35 shadow-none">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base text-foreground">Dispositivos</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {metrics.devices.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Sin datos de dispositivo.</p>
+                        ) : (
+                          metrics.devices.map((device) => {
+                            const total = metrics.devices.reduce((sum, current) => sum + current.n, 0) || 1
+                            const share = Math.round((device.n / total) * 100)
+                            return (
+                              <div key={device.device}>
+                                <div className="mb-1.5 flex justify-between text-xs">
+                                  <span className="capitalize text-foreground">{device.device}</span>
+                                  <span className="tabular-nums text-muted-foreground">{share}%</span>
+                                </div>
+                                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                  <div className="h-full rounded-full bg-brand-500" style={{ width: `${share}%` }} />
+                                </div>
                               </div>
-                              <span className="text-xs text-foreground">{l.pct}%</span>
-                            </div>
-                          </td>
-                          <td className="py-2 text-right text-foreground">
-                            {l.reachedEnd ? '✅ Final' : fmt(l.maxPosition)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                            )
+                          })
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
 
-          <div className="pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const v = videos.find((x) => x.slug === selected)
-                if (v) del(v.id)
-              }}
-              className="text-red-400 hover:text-red-300"
-            >
-              <Trash2 className="mr-1 h-4 w-4" /> Borrar vídeo
-            </Button>
-          </div>
-        </>
+                <TabsContent value="embed" className="space-y-5">
+                  <Card className="border-border/70 bg-card/35 shadow-none">
+                    <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-base text-foreground">
+                          <Code2 className="h-4 w-4 text-brand-400" /> Código para tu landing
+                        </CardTitle>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Inserta este reproductor en una página del mismo tenant.
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={copySnippet} disabled={!selectedVideo.source_url}>
+                        {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                        {copied ? 'Copiado' : 'Copiar código'}
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {!selectedVideo.source_url && (
+                        <div className="flex gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-muted-foreground">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                          <p>Sube o conecta una fuente antes de publicar el embed.</p>
+                        </div>
+                      )}
+                      <pre className="max-h-56 overflow-auto rounded-lg border border-border bg-background/70 p-4 text-xs leading-relaxed text-foreground">
+                        <code>{snippet}</code>
+                      </pre>
+                    </CardContent>
+                  </Card>
+                  <div className="flex flex-col gap-3 rounded-xl border border-border/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-medium text-foreground">Configuración del reproductor</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Miniatura, autoplay, progreso, CTA y comportamiento de salida.
+                      </p>
+                    </div>
+                    <Button variant="outline" onClick={() => setEditing(selectedVideo)}>
+                      <Settings2 className="mr-2 h-4 w-4" /> Editar reproductor
+                    </Button>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => del(selectedVideo.id)}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Borrar vídeo
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            )}
+          </main>
+        </div>
       )}
     </div>
   )
 }
 
-function Kpi({ icon: Icon, label, value, sub }: { icon: any; label: string; value: any; sub?: string }) {
+function Metric({ icon: Icon, label, value }: { icon: typeof Eye; label: string; value: string | number }) {
   return (
-    <Card className="dashboard-card">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Icon className="h-4 w-4" />
-          {label}
-        </div>
-        <div className="mt-1 text-2xl font-bold text-foreground">{value}</div>
-        {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
-      </CardContent>
-    </Card>
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <p className="mt-1.5 text-2xl font-semibold tracking-tight tabular-nums text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function EmptyAnalysis({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex min-h-44 flex-col items-center justify-center px-4 text-center">
+      <BarChart3 className="mb-3 h-6 w-6 text-muted-foreground/60" />
+      <p className="font-medium text-foreground">{title}</p>
+      <p className="mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">{description}</p>
+    </div>
   )
 }
 
@@ -554,7 +726,8 @@ function VideoForm({
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const setCfg = (k: keyof VslConfig, v: any) => setConfig((c) => ({ ...c, [k]: v }))
+  const setCfg = <K extends keyof VslConfig>(key: K, value: VslConfig[K]) =>
+    setConfig((current) => ({ ...current, [key]: value }))
 
   const readDuration = (file: File) =>
     new Promise<number>((resolve) => {
@@ -801,7 +974,7 @@ function VideoForm({
             <div className="mt-1 flex flex-wrap items-center gap-3">
               <select
                 value={config.socialProof}
-                onChange={(e) => setCfg('socialProof', e.target.value)}
+                onChange={(e) => setCfg('socialProof', e.target.value as VslConfig['socialProof'])}
                 className="rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-foreground"
               >
                 <option value="off">Desactivado</option>

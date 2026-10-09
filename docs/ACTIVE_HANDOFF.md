@@ -1,27 +1,23 @@
-# EN CURSO · VSL Intelligence PR-1b tracking foundation (9-oct-2026, Codex)
+# EN CURSO · VSL Intelligence UI: reproductor primero (9-oct-2026, Codex)
 
-- **Rama única:** `codex/vsl-tracking-foundation`.
-- **Alcance reclamado:** migración aditiva para versiones, ubicaciones de embed, playbacks, eventos,
-  intervalos e identidades VSL; RLS, índices, tests de contrato y documentación. No sustituye aún
-  `vsl_sessions`, no recalcula métricas ni cambia el reproductor Bunny.
-- **Estado previo:** PR-0 #413 y frontera pública tenant-safe #414 (`f64fa85a`) fusionadas; CI,
-  Preview y despliegue de producción PASS.
-- **UX obligatoria para fases de pantalla:** `FUNCTION > CLARITY > POLISH`; una pregunta por pestaña,
-  una métrica principal, KPIs secundarios después y detalle expandible al final. Empty/loading/error
-  explícitos; ninguna pantalla se da por terminada si no se entiende en cinco segundos.
-- **Implementado en rama:** migración aditiva con versiones de vídeo, ubicaciones de embed,
-  playbacks, eventos canónicos, intervalos realmente vistos e identidades verificables. Todas las
-  relaciones —incluida la compatibilidad con `vsl_sessions`— usan claves compuestas por tenant;
-  eventos e intervalos son idempotentes, las escrituras públicas quedan cerradas y RLS solo concede
-  lectura al tenant o superadmin.
-- **TESTED:** contrato estático 6/6; suite completa previa 1.509 PASS + 3 omitidas; dry-run contra
-  Supabase producción dentro de `BEGIN/ROLLBACK` PASS. El ensayo creó el esquema, confirmó las seis
-  tablas y políticas, rechazó una sesión legacy cruzada entre tenants, un evento duplicado y un
-  intervalo vacío. Verificación posterior: cero tablas nuevas persistidas en producción.
-- **No aplicado:** la migración permanece solo en código. No aplicar a producción sin confirmación
-  explícita y no conectar dual-write hasta que este PR esté fusionado y el esquema aplicado.
-- **Siguiente exacto:** cerrar quality gate/PR; después, con autorización, aplicar la migración y
-  verificar asesores. La siguiente fase será instrumentación dual-write preservando `vsl_sessions`.
+- **Rama única:** `codex/vsl-interface-polish`.
+- **Alcance reclamado:** únicamente la experiencia de `marketing/adquisicion/vsl`: biblioteca,
+  vista previa real, jerarquía analítica, pestañas Engagement/Audiencia/Embed y estados de
+  carga/error/vacío. No modifica fórmulas, tracking, reproductor público ni datos.
+- **Dirección:** `FUNCTION > CLARITY > POLISH`; interfaz técnica y sobria, reproductor 16:9 como
+  foco, una pregunta por pestaña y detalle avanzado plegado. El rosa de marca señala selección y
+  acción; verde/ámbar/rojo quedan reservados para estados.
+- **Implementado en rama:** biblioteca compacta con miniaturas Bunny; reproductor real en modo
+  preview que no contamina métricas; Engagement con un KPI principal y curva dominante; Audiencia
+  separada de dispositivos; Embed y configuración fuera del análisis. Se añadieron skeletons,
+  reintento sin recargar la página y estados vacíos explicativos.
+- **TESTED hasta ahora:** typecheck PASS tras corregir el selector tipado; regresiones VSL 30/30.
+  El servidor local compila, pero el render autenticado no está disponible sin trasladar una sesión;
+  no se copiarán tokens entre dominios. Validar visualmente en Preview/producción después del PR.
+- **Estado de la base:** PR-1b #415 fusionada (`35fc3041`), dry-run Supabase PASS, pero la migración
+  `20261009010000_vsl_tracking_foundation` sigue sin aplicarse hasta recibir confirmación explícita.
+- **Siguiente exacto:** quality gate, Preview, revisión real escritorio/móvil y merge solo si la
+  jerarquía se mantiene legible. Después, aplicar la migración con autorización y conectar dual-write.
 
 # CERRADO EN RAMA · perfiles financieros de equipo comisionable (9-oct-2026, Codex)
 

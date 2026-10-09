@@ -50,8 +50,8 @@ test('customización del reproductor: botón central y fullscreen son configurab
 
 test('thumbnails dinámicos: las tarjetas muestran miniatura y preview animado al hover', () => {
   assert.ok(dash.includes('derivadosDeSource'), 'el dashboard deriva los artefactos de Bunny')
-  assert.ok(dash.includes('d.thumbnail') && dash.includes('d.preview'), 'miniatura + preview en la tarjeta')
-  assert.ok(dash.includes('previewSlug === v.slug'), 'el preview solo se carga en hover')
+  assert.ok(dash.includes('derived.thumbnail') && dash.includes('derived.preview'), 'miniatura + preview en la tarjeta')
+  assert.ok(dash.includes('previewSlug === video.slug'), 'el preview solo se carga en hover')
   assert.ok(dash.includes('loading="lazy"'), 'las miniaturas no compiten con el contenido inicial')
 })
 
