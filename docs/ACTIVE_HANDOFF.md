@@ -1,3 +1,19 @@
+# CERRADO EN RAMA · Histórico GHL reanudable sin timeout (9-oct-2026, Codex)
+
+- **Rama:** `codex/ghl-history-batches`, desde `origin/main` tras PR #428.
+- **Reclamación:** `lib/integrations/citas-sync.ts`, la ruta `history-sync`, el bucle de histórico
+  de Integraciones y sus regresiones focales. No modifica esquema, RLS, fórmulas ni datos financieros.
+- **Causa reproducida en producción:** el histórico GHL recorría contactos y eventos
+  en una sola invocación; Vercel devolvió 504 por el límite de 60 s el 9-oct. Calendly sí avanza
+  correctamente en lotes de 20.
+- **Implementado:** GHL procesa calendarios y eventos en lotes de hasta 40 s, devuelve un cursor
+  opaco `{calendarIndex,eventIndex}`, persiste el cursor 30 minutos en el navegador y reanuda sin
+  duplicar por `external_id`. La reparación global de closers solo corre en el primer lote para no
+  consumir el presupuesto de los siguientes. Cada lote queda registrado como `ghl-historico`.
+- **TESTED:** focales de GHL/citas 13/13 PASS; typecheck PASS; quality completa PASS (suite y métricas
+  788/788); build de producción PASS. Pendiente CI, merge, despliegue y repetir en producción el
+  botón de histórico para confirmar varios lotes sin 504.
+
 # CERRADO EN RAMA · Enriquecimiento de atribución GHL por contacto (9-oct-2026, Codex)
 
 - **Rama:** `codex/ghl-attribution-enrichment`, desde `main` posterior al PR #425.

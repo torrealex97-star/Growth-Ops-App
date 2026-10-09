@@ -62,6 +62,29 @@ export type CitasSyncOpts = {
   pageSize?: number
 }
 
+type GhlHistoryCursor = {
+  calendarIndex: number
+  eventIndex: number
+}
+
+function parseGhlHistoryCursor(value?: string): GhlHistoryCursor {
+  if (!value) return { calendarIndex: 0, eventIndex: 0 }
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<GhlHistoryCursor>
+    const calendarIndex = Number(parsed.calendarIndex)
+    const eventIndex = Number(parsed.eventIndex)
+    if (!Number.isSafeInteger(calendarIndex) || calendarIndex < 0) throw new Error('calendarIndex inválido')
+    if (!Number.isSafeInteger(eventIndex) || eventIndex < 0) throw new Error('eventIndex inválido')
+    return { calendarIndex, eventIndex }
+  } catch {
+    throw new Error('El cursor de GHL no es válido o ha caducado')
+  }
+}
+
+function encodeGhlHistoryCursor(cursor: GhlHistoryCursor) {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url')
+}
+
 export async function findOrCreateContact(
   sb: SupabaseClient,
   tenantId: string,
@@ -380,10 +403,16 @@ export async function syncGhl(
   let appointmentsUpdated = 0
   let closerBackfill = 0
   let cortado = false
+  let nextPageToken: string | null = null
+  const historyCursor = parseGhlHistoryCursor(opts.pageToken)
   // Prioridad a las filas ya importadas: conservan assignedUserId aunque su calendario se haya
   // archivado. Se ejecuta antes de los listados externos para que el budget no las vuelva a dejar
   // permanentemente como "Sin closer".
-  closerBackfill += await backfillCloserGhlDesdePayload(sb, tenantId, locationId, headers, opts)
+  // La reparación global solo se ejecuta al iniciar el recorrido. Repetirla en cada lote
+  // reanudado podría consumir de nuevo todo el presupuesto antes de avanzar el cursor.
+  if (!opts.pageToken) {
+    closerBackfill += await backfillCloserGhlDesdePayload(sb, tenantId, locationId, headers, opts)
+  }
   // En modo soloEventos esta fase NO corre: paginar todos los contactos no cabe en el cron.
   while (pages < 100 && !lazyContacts) {
     if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
@@ -434,43 +463,37 @@ export async function syncGhl(
   // aparece. Se resuelve una vez por calendario y se cachea: assignedUserId → GET /users/{id} →
   // email → usuario de la app (acotado a la subcuenta).
   const duenaDeCalendario = new Map<string, string | null>()
-  for (const calendar of calendarsBody.calendars ?? []) {
-    // El reloj también aquí: cada dueño cuesta un GET /users (15 s de presupuesto propio) y
-    // son varios por pasada. Sin corte, resolver 20 calendarios se come el budget SIN escribir
-    // ni una cita (lección #277: el deadline gobierna TODAS las llamadas externas). Lo ya
-    // resuelto queda en el mapa y la pasada sigue al bucle de eventos.
+  const calendars = calendarsBody.calendars ?? []
+  historyLoop: for (
+    let calendarIndex = historyCursor.calendarIndex;
+    calendarIndex < calendars.length;
+    calendarIndex++
+  ) {
+    const calendar = calendars[calendarIndex]
     if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
       cortado = true
-      break
-    }
-    const cid = text(calendar.id)
-    const assignedUserId = text(calendar.assignedUserId) || text(calendar.userId)
-    if (!cid || !assignedUserId) continue
-    try {
-      const userResponse = await fetch(
-        `https://services.leadconnectorhq.com/users/${encodeURIComponent(assignedUserId)}?locationId=${encodeURIComponent(locationId)}`,
-        { headers, signal: AbortSignal.timeout(15_000) }
-      )
-      const userBody = (await userResponse.json().catch(() => ({}))) as Json
-      if (userResponse.ok) {
-        // El endpoint ha devuelto el objeto directo o envuelto en `user` según versión: se toleran ambas.
-        const user = (
-          text((userBody as Json).email) ? (userBody as Json) : ((userBody.user as Json | undefined) ?? null)
-        ) as Json | null
-        const userId = user ? await resolveUserIdByEmail(sb, text(user.email), tenantId) : null
-        if (userId) duenaDeCalendario.set(cid, userId)
-      }
-    } catch (e) {
-      console.warn('[ghl] no se pudo resolver el dueño del calendario:', e instanceof Error ? e.message : e)
-    }
-  }
-  for (const calendar of calendarsBody.calendars ?? []) {
-    if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
-      cortado = true
+      nextPageToken = encodeGhlHistoryCursor({ calendarIndex, eventIndex: 0 })
       break
     }
     const calendarId = text(calendar.id)
     if (!calendarId) continue
+    const assignedUserId = text(calendar.assignedUserId) || text(calendar.userId)
+    if (assignedUserId) {
+      try {
+        const userResponse = await fetch(
+          `https://services.leadconnectorhq.com/users/${encodeURIComponent(assignedUserId)}?locationId=${encodeURIComponent(locationId)}`,
+          { headers, signal: AbortSignal.timeout(10_000) }
+        )
+        const userBody = (await userResponse.json().catch(() => ({}))) as Json
+        if (userResponse.ok) {
+          const user = (text(userBody.email) ? userBody : ((userBody.user as Json | undefined) ?? null)) as Json | null
+          const userId = user ? await resolveUserIdByEmail(sb, text(user.email), tenantId) : null
+          if (userId) duenaDeCalendario.set(calendarId, userId)
+        }
+      } catch (e) {
+        console.warn('[ghl] no se pudo resolver el dueño del calendario:', e instanceof Error ? e.message : e)
+      }
+    }
     const url = new URL('https://services.leadconnectorhq.com/calendars/events')
     url.searchParams.set('locationId', locationId)
     url.searchParams.set('calendarId', calendarId)
@@ -479,13 +502,17 @@ export async function syncGhl(
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) })
     const body = (await response.json().catch(() => ({}))) as { events?: Json[]; message?: string }
     if (!response.ok) throw new Error(body.message || `GHL agendas respondió ${response.status}`)
-    for (const event of body.events ?? []) {
+    const events = body.events ?? []
+    const firstEvent = calendarIndex === historyCursor.calendarIndex ? historyCursor.eventIndex : 0
+    for (let eventIndex = firstEvent; eventIndex < events.length; eventIndex++) {
+      const event = events[eventIndex]
       // Reloj ANTES de cada evento (lección #277): el fetch perezoso del contacto cuesta hasta
       // 15 s, así que entre páginas ya es tarde. El corte abandona el evento SIN escribir —
       // el upsert es idempotente y la pasada siguiente lo relee y lo guarda.
       if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
         cortado = true
-        break
+        nextPageToken = encodeGhlHistoryCursor({ calendarIndex, eventIndex })
+        break historyLoop
       }
       if (event.deleted === true || text(event.type) === 'blockedSlot') continue
       const eventId = text(event.id)
@@ -639,6 +666,7 @@ export async function syncGhl(
     appointmentsUpdated,
     cortado,
     closerBackfill,
+    nextPageToken,
   }
 }
 

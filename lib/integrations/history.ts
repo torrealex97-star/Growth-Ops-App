@@ -49,8 +49,8 @@ export const HISTORY_CAPABILITIES: Record<string, HistoryCapability> = {
   },
   ghl: {
     provider: 'ghl',
-    brings: 'Contactos y citas de la subcuenta.',
-    reach: 'Todo el histórico de la subcuenta, recorriendo páginas hasta el final.',
+    brings: 'Citas y los contactos vinculados a ellas.',
+    reach: 'Todo el histórico de calendarios de la subcuenta, reanudando por lotes hasta el final.',
     slow: true,
   },
   fathom: {

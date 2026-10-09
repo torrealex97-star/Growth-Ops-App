@@ -135,7 +135,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       )
       return NextResponse.json({ provider: 'meta', campañas, diario, anuncios, sinceDays: dias })
     }
-    if (body.provider === 'ghl') return NextResponse.json(await syncGhl(sb, auth.tenantId, cfg))
+    if (body.provider === 'ghl') {
+      // Igual que Calendly: el histórico completo no cabe en una Function Hobby de 60 s.
+      // Procesamos eventos y sus contactos asociados durante ~40 s y devolvemos un cursor
+      // reanudable. Lo ya escrito queda persistido e idempotente por external_id.
+      const cursor = typeof body.cursor === 'string' && body.cursor.length <= 2048 ? body.cursor : undefined
+      const result = await recordSyncRun(
+        sb,
+        {
+          tenantId: auth.tenantId,
+          provider: 'ghl',
+          job: 'ghl-historico',
+          trigger: 'historico',
+          secrets: [cfg.GHL_API_TOKEN],
+          requiere: { claves: ['GHL_API_TOKEN', 'GHL_LOCATION_ID'], cfg },
+        },
+        () =>
+          syncGhl(sb, auth.tenantId, cfg, {
+            modo: 'soloEventos',
+            pageToken: cursor,
+            deadlineMs: Date.now() + 40_000,
+          }),
+        (r) => ({
+          rowsWritten: r.appointmentsImported + r.appointmentsUpdated,
+          failures: [],
+          detail: {
+            citasImportadas: r.appointmentsImported,
+            citasActualizadas: r.appointmentsUpdated,
+            contactosImportados: r.imported,
+            contactosActualizados: r.updated,
+            closerBackfill: r.closerBackfill,
+            tieneSiguienteLote: Boolean(r.nextPageToken),
+          },
+        })
+      )
+      return NextResponse.json(result)
+    }
     if (body.provider === 'calendly') {
       // El histórico completo son cientos de llamadas (evento + invitees + escrituras). Hacerlo
       // dentro de UNA función de 60 s terminaba en 504 y obligaba a recargar. Se procesa una página
