@@ -25,7 +25,7 @@ test('webhooks calendly y ghl: el resultado de registrarToque se comprueba, no s
   ]) {
     const src = leer(w)
     assert.match(src, /const r = await registrarToque\(/, w)
-    assert.match(src, /if \(!r\.ok\) console\.warn/, w)
+    assert.match(src, /if \(!r\.ok\)[\s\S]{0,240}status: 500/, w)
   }
 })
 

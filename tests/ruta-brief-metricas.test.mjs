@@ -168,8 +168,8 @@ test('el aviso dice qué hacer, y que sin captura no hay nada que atribuir', () 
   assert.match(ruta, /no hay nada que atribuir/)
 })
 
-// Los webhooks registran el toque, y un fallo al atribuir no puede tumbar la cita.
-test('los webhooks registran el toque sin arriesgar la cita', () => {
+// Los webhooks registran el toque y piden reintento si esa escritura falla.
+test('los webhooks registran el toque y no pierden atribución silenciosamente', () => {
   for (const w of [
     'app/api/[tenant]/evergreen/webhooks/calendly/route.ts',
     'app/api/[tenant]/evergreen/webhooks/ghl/route.ts',
@@ -178,8 +178,8 @@ test('los webhooks registran el toque sin arriesgar la cita', () => {
     assert.match(codigo, /registrarToque\(sb, tenantId, contact\.id/, w)
     // Guard: registra si hay datos de toque O si viene ?ref= de colaborador (FK estructurada).
     assert.match(codigo, /if \(colaboradorId \|\| toqueTieneDatos\(toque\)\)/, w)
-    // En try/catch: la cita y el contacto valen más que su procedencia.
-    assert.match(codigo, /try \{[\s\S]{0,320}registrarToque[\s\S]{0,200}\} catch/, w)
+    assert.match(codigo, /try \{[\s\S]{0,900}registrarToque[\s\S]{0,500}\} catch/, w)
+    assert.match(codigo, /Error registrando la atribución[\s\S]{0,180}status: 500/, w)
   }
 })
 

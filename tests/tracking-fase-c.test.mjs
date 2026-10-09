@@ -25,7 +25,19 @@ test('el SDK genera anon id persistente y sesión por pestaña', () => {
 })
 
 test('el SDK envía UTMs y click ids y auto-trackea page_view', () => {
-  for (const attr of ['utm_source', 'utm_medium', 'utm_campaign', 'gclid', 'fbclid', 'ttclid']) {
+  for (const attr of [
+    'utm_source',
+    'utm_medium',
+    'utm_campaign',
+    'utm_id',
+    'utm_source_platform',
+    'gclid',
+    'gbraid',
+    'wbraid',
+    'fbclid',
+    'ttclid',
+    'msclkid',
+  ]) {
     assert.ok(TRACKER_JS.includes(`'${attr}'`), `falta ${attr}`)
   }
   assert.match(TRACKER_JS, /sendBeacon/, 'debe preferir sendBeacon')

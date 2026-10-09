@@ -36,6 +36,23 @@ export type ToqueAtribucion = {
   utmCampaign?: string | null
   utmContent?: string | null
   utmTerm?: string | null
+  utmId?: string | null
+  utmSourcePlatform?: string | null
+  gclid?: string | null
+  gbraid?: string | null
+  wbraid?: string | null
+  fbclid?: string | null
+  ttclid?: string | null
+  msclkid?: string | null
+  gaClientId?: string | null
+  gaSessionId?: string | null
+  adId?: string | null
+  adName?: string | null
+  adSetId?: string | null
+  adGroupId?: string | null
+  referrer?: string | null
+  /** De dónde procede la evidencia; no es el canal de marketing. */
+  evidenceSource?: 'provider_first' | 'provider_last' | 'booking' | 'flat_payload' | 'browser'
   /**
    * UUID del collaborator_profile cuando el toque viene de un enlace de
    * colaborador (?ref=CODIGO resuelto server-side a id, nunca el código como
@@ -56,10 +73,64 @@ export function toqueTieneDatos(t: ToqueAtribucion): boolean {
     t.utmCampaign ||
     t.utmContent ||
     t.utmTerm ||
+    t.utmId ||
+    t.utmSourcePlatform ||
+    t.gclid ||
+    t.gbraid ||
+    t.wbraid ||
+    t.fbclid ||
+    t.ttclid ||
+    t.msclkid ||
+    t.gaClientId ||
+    t.gaSessionId ||
+    t.adId ||
+    t.adName ||
+    t.adSetId ||
+    t.adGroupId ||
     t.source ||
     t.landingUrl ||
+    t.referrer ||
     t.colaboradorId
   )
+}
+
+export type TrayectoriaAtribucion = {
+  first: ToqueAtribucion | null
+  /** Solo existe si el proveedor entrega una segunda interacción cronológica real. */
+  second: ToqueAtribucion | null
+  last: ToqueAtribucion | null
+  booking: ToqueAtribucion | null
+}
+
+/** Snapshot sin IP ni user-agent para explicar la atribución de una agenda. */
+export function serializarToque(t: ToqueAtribucion | null): Record<string, string> | null {
+  if (!t || !toqueTieneDatos(t)) return null
+  const values: Record<string, string | null | undefined> = {
+    source: t.source,
+    landing_url: t.landingUrl,
+    referrer: t.referrer,
+    utm_source: t.utmSource,
+    utm_medium: t.utmMedium,
+    utm_campaign: t.utmCampaign,
+    utm_content: t.utmContent,
+    utm_term: t.utmTerm,
+    utm_id: t.utmId,
+    utm_source_platform: t.utmSourcePlatform,
+    gclid: t.gclid,
+    gbraid: t.gbraid,
+    wbraid: t.wbraid,
+    fbclid: t.fbclid,
+    ttclid: t.ttclid,
+    msclkid: t.msclkid,
+    ga_client_id: t.gaClientId,
+    ga_session_id: t.gaSessionId,
+    ad_id: t.adId,
+    ad_name: t.adName,
+    ad_set_id: t.adSetId,
+    ad_group_id: t.adGroupId,
+    evidence_source: t.evidenceSource,
+  }
+  return Object.fromEntries(Object.entries(values).filter((entry): entry is [string, string] => Boolean(entry[1])))
 }
 
 const texto = (v: unknown): string | null => {
@@ -101,8 +172,57 @@ export function leerToque(payload: unknown): ToqueAtribucion {
     utmCampaign: buscar('utm_campaign', 'utmCampaign'),
     utmContent: buscar('utm_content', 'utmContent'),
     utmTerm: buscar('utm_term', 'utmTerm'),
+    utmId: buscar('utm_id', 'utmId', 'campaignId'),
+    utmSourcePlatform: buscar('utm_source_platform', 'utmSourcePlatform'),
+    gclid: buscar('gclid'),
+    gbraid: buscar('gbraid'),
+    wbraid: buscar('wbraid'),
+    fbclid: buscar('fbclid'),
+    ttclid: buscar('ttclid'),
+    msclkid: buscar('msclkid'),
+    gaClientId: buscar('ga_client_id', 'gaClientId'),
+    gaSessionId: buscar('ga_session_id', 'gaSessionId'),
+    adId: buscar('ad_id', 'adId'),
+    adName: buscar('ad_name', 'adName'),
+    adSetId: buscar('adset_id', 'ad_set_id', 'adSetId'),
+    adGroupId: buscar('ad_group_id', 'adGroupId'),
     landingUrl: buscar('landing_url', 'landingUrl', 'page_url', 'url'),
-    source: buscar('source', 'utm_source'),
+    referrer: buscar('referrer'),
+    source: buscar('source', 'sessionSource', 'utm_source', 'utmSource'),
+    evidenceSource: 'flat_payload',
+  }
+}
+
+function leerObjetoProveedor(
+  value: unknown,
+  evidenceSource: ToqueAtribucion['evidenceSource']
+): ToqueAtribucion | null {
+  if (!value || typeof value !== 'object') return null
+  const toque = leerToque(value)
+  toque.evidenceSource = evidenceSource
+  return toqueTieneDatos(toque) ? toque : null
+}
+
+/**
+ * Normaliza la trayectoria que realmente declara el proveedor.
+ *
+ * GHL envía `attributionSource` (primer toque) y `lastAttributionSource` (último toque).
+ * Calendly envía `tracking`, que es evidencia del toque de reserva. `last` NO se renombra como
+ * `second`: una segunda interacción solo existe cuando llega explícitamente como tal.
+ */
+export function leerTrayectoria(payload: unknown): TrayectoriaAtribucion {
+  if (!payload || typeof payload !== 'object') return { first: null, second: null, last: null, booking: null }
+  const p = payload as Record<string, unknown>
+  const first = leerObjetoProveedor(p.attributionSource ?? p.firstAttributionSource, 'provider_first')
+  const second = leerObjetoProveedor(p.secondAttributionSource, 'provider_first')
+  const last = leerObjetoProveedor(p.lastAttributionSource, 'provider_last')
+  const booking = leerObjetoProveedor(p.tracking, 'booking')
+  const flat = leerToque(p)
+  return {
+    first,
+    second,
+    last,
+    booking: booking ?? (toqueTieneDatos(flat) ? { ...flat, evidenceSource: 'flat_payload' } : null),
   }
 }
 

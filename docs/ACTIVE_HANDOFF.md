@@ -1,3 +1,33 @@
+# CERRADO EN RAMA · Atribución verificable en agendas (9-oct-2026, Codex)
+
+- **Rama única:** `codex/attribution-booking-tracking`, aislada porque el checkout principal está
+  ocupado por `codex/mcp-server`. Alcance: inventario y cobertura real de agendas; normalización de
+  first/last touch declarados por GHL, UTMs y click IDs; preservación cronológica sin inventar second
+  touch; vínculo de evidencia con la agenda y regresiones. No toca MCP, VSL UI, ventas ni finanzas.
+- **Evidencia inicial de producción:** WDC tiene 644 agendas; 72/543 Calendly y 0/101 GHL conservan
+  alguna UTM. Calendly persiste todas las UTMs no vacías que recibe. Un webhook GHL sí contiene
+  `attributionSource`/`lastAttributionSource` con UTMs, gclid/gbraid/wbraid, sesión GA, anuncio,
+  landing y referrer, pero el parser actual no entra en esos objetos. El pixel tiene 36 sesiones y
+  36 touchpoints, ninguno enlazado todavía a contacto. No se promete second touch si no hay una
+  segunda interacción cronológica observada.
+- **Implementado:** Calendly conserva el toque de reserva; GHL normaliza sus bloques reales de
+  first/second/last. Las agendas guardan snapshots explicables de primer, segundo, último y booking
+  touch, con estado de cobertura. Se incluyen UTMs ampliadas, IDs de clic de Google/Meta/TikTok/
+  Microsoft, IDs GA, anuncio/adset/adgroup, landing y referrer; no se duplican IP ni user-agent en
+  esos snapshots. El tracker first-party también captura `utm_id`, `utm_source_platform`, `gbraid`,
+  `wbraid` y `msclkid`. Un fallo de persistencia devuelve 500 para que el proveedor reintente.
+- **Integridad:** `last-touch` nunca se etiqueta como `second-touch`; una agenda sin señal permanece
+  `none`, no “Direct”. La migración hace backfill únicamente desde evidencia cruda existente y
+  conserva el aislamiento/RLS de `appointments`.
+- **TESTED en clon aislado:** atribución focal 39/39 PASS; typecheck PASS; suite completa 1.524 PASS,
+  3 omitidas y 0 fallos; build de producción PASS (solo avisos heredados). `git diff --check` PASS.
+- **Pendiente externo:** fusionar la rama y aplicar
+  `20261009170000_appointment_attribution_evidence.sql` en Supabase producción con autorización
+  explícita. Después, ejecutar un booking real por fuente y verificar agenda → contacto →
+  `contact_attributions`. El histórico sin UTMs no es reconstruible; el pixel actual tiene 36
+  sesiones/touchpoints y cero vínculos deterministas a contacto, por lo que identity stitching
+  first-party sigue siendo un bloque separado.
+
 # EN CURSO · VSL Precision Tracking + heatmaps (9-oct-2026, Codex)
 
 - **Rama única:** `codex/vsl-precision-tracking`. Alcance: dual-write del reproductor VSL,

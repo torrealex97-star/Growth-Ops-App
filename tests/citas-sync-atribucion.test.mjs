@@ -40,7 +40,8 @@ test('las UTMs de la cita entran SOLO si el payload las trae: el spread vacío n
   assert.match(calendly, /\(toque\.utmSource \? \{ utm_source: toque\.utmSource \} : \{\}\)/)
   assert.match(calendly, /\(toque\.utmCampaign \? \{ utm_campaign: toque\.utmCampaign \} : \{\}\)/)
   // Y van dentro de values (update + insert comparten payload), no en un segundo update.
-  assert.match(calendly, /source: 'calendly',\s*\n\s*\.\.\.utmDeCita,/)
+  assert.match(calendly, /\.\.\.utmDeCita,/)
+  assert.match(calendly, /attribution_booking: bookingSnapshot/)
 })
 
 test('GHL: la sync también registra el toque del evento si algún día trae UTMs (hoy 0 de 97)', () => {
@@ -49,6 +50,8 @@ test('GHL: la sync también registra el toque del evento si algún día trae UTM
   assert.ok(ghl.length > 0, 'existe syncGhl')
   assert.match(ghl, /atribuirDesdePayload\(sb, tenantId, contact\.data\.id, event/)
   assert.match(ghl, /source: 'ghl'/)
+  assert.match(ghl, /const trayectoriaGhl = leerTrayectoria\(event\)/)
+  assert.match(ghl, /attribution_second: serializarToque\(trayectoriaGhl\.second\)/)
 })
 
 test('un fallo de atribución NO tumba la sync (la cita vale más que su procedencia)', () => {
