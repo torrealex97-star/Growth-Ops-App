@@ -49,15 +49,19 @@ test('el formulario de VSL renderiza una vista previa en vivo con VslPlayer en m
 })
 
 test('sin fuente, el listado y la tarjeta de embed avisan en vez de dejarlo en silencio', () => {
-  assert.match(dash, /!v\.source_url/, 'las tarjetas del listado comprueban si falta la fuente')
+  assert.match(dash, /!video\.source_url/, 'las tarjetas del listado comprueban si falta la fuente')
   assert.match(dash, /Sin fuente/, 'hay una etiqueta visible de aviso en el listado')
-  assert.match(dash, /no tiene un archivo de fuente/, 'la tarjeta de embed explica por qué el código no va a funcionar')
+  assert.match(dash, /Sube o conecta una fuente/, 'la tarjeta de embed explica por qué el código no va a funcionar')
   // El botón de copiar el snippet se deshabilita si el vídeo seleccionado no tiene fuente: copiar un
   // embed roto sin avisar es justo el bug reportado.
   const idxCopy = dash.indexOf('onClick={copySnippet}')
   assert.ok(idxCopy > -1)
   const bloque = dash.slice(idxCopy, idxCopy + 150)
-  assert.match(bloque, /disabled=\{!videos\.find/, 'el botón de copiar comprueba la fuente antes de habilitarse')
+  assert.match(
+    bloque,
+    /disabled=\{!selectedVideo\.source_url\}/,
+    'el botón de copiar comprueba la fuente antes de habilitarse'
+  )
 })
 
 test('guardar sin ninguna fuente de vídeo pide confirmación explícita en vez de guardarse en silencio', () => {
