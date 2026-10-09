@@ -1,4 +1,4 @@
-# CERRADO EN RAMA · Atribución verificable en agendas (9-oct-2026, Codex)
+# CERRADO Y DESPLEGADO · Atribución verificable en agendas (PR #420, 9-oct-2026, Codex)
 
 - **Rama única:** `codex/attribution-booking-tracking`, aislada porque el checkout principal está
   ocupado por `codex/mcp-server`. Alcance: inventario y cobertura real de agendas; normalización de
@@ -21,12 +21,18 @@
   conserva el aislamiento/RLS de `appointments`.
 - **TESTED en clon aislado:** atribución focal 39/39 PASS; typecheck PASS; suite completa 1.524 PASS,
   3 omitidas y 0 fallos; build de producción PASS (solo avisos heredados). `git diff --check` PASS.
-- **Pendiente externo:** fusionar la rama y aplicar
-  `20261009170000_appointment_attribution_evidence.sql` en Supabase producción con autorización
-  explícita. Después, ejecutar un booking real por fuente y verificar agenda → contacto →
-  `contact_attributions`. El histórico sin UTMs no es reconstruible; el pixel actual tiene 36
-  sesiones/touchpoints y cero vínculos deterministas a contacto, por lo que identity stitching
-  first-party sigue siendo un bloque separado.
+- **Producción:** PR #420 fusionada en `main` (`776b9449`). La migración
+  `20261009170000_appointment_attribution_evidence` está aplicada en `growth-ops-app` y su registro
+  fue reconciliado con la versión exacta del archivo para evitar drift. Esquema verificado: cinco
+  columnas nuevas y constraint de cobertura activos.
+- **Backfill verificado:** 644 agendas WDC; 73 con evidencia útil (`partial`), 571 sin señal
+  recuperable (`none`), 0 falsos `complete`; 1 agenda con first/last GHL y 0 second-touch explícitos.
+  Los 543 payloads Calendly conservan su objeto de tracking, pero solo 72 contienen UTMs no vacías.
+  Cero snapshots contienen IP o user-agent.
+- **Pendiente de evidencia futura:** ejecutar un booking real por fuente y verificar agenda →
+  contacto → `contact_attributions`. El histórico sin UTMs no es reconstruible; el pixel actual
+  tiene 36 sesiones/touchpoints y cero vínculos deterministas a contacto, por lo que identity
+  stitching first-party sigue siendo un bloque separado.
 
 # EN CURSO · VSL Precision Tracking + heatmaps (9-oct-2026, Codex)
 
