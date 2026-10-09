@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { VslConfig } from '@/lib/vsl/types'
+import { derivadosDeSource, type VslConfig } from '@/lib/vsl/types'
 import { formatNumber } from '@/lib/utils'
 import type HlsType from 'hls.js'
 import type { VslWatchInterval } from '@/lib/vsl/tracking'
@@ -117,6 +117,7 @@ export function VslPlayer({
   const playSentRef = useRef(false)
   const hasPlayedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const hlsRef = useRef<HlsType | null>(null)
 
   const [muted, setMuted] = useState(video.config.muted ?? true)
   const [playing, setPlaying] = useState(false)
@@ -130,12 +131,39 @@ export function VslPlayer({
   const [showExitHook, setShowExitHook] = useState(false) // overlay "no te vayas"
   const exitShownRef = useRef(0) // veces mostrado (máx 2/sesión)
   const [showCta, setShowCta] = useState(false) // CTA programado (paridad Vidalytics)
+  const [motionPosterReady, setMotionPosterReady] = useState(false)
   const ctaShownRef = useRef(false) // ya se disparó en esta sesión
   const ctaDismissedRef = useRef(false) // el usuario lo cerró (si ctaOnce)
 
   const cfg = video.config
   const src = video.source_url || ''
   const isHls = src.toLowerCase().includes('.m3u8')
+  const bunnyAssets = derivadosDeSource(src)
+  const poster = video.poster_url || bunnyAssets.thumbnail
+  const motionPoster = cfg.thumbnailMode === 'animated' ? bunnyAssets.preview : null
+
+  // La portada estática pinta primero. El preview animado solo se solicita cuando el player entra
+  // en viewport y el dispositivo no ha pedido ahorro de datos ni reducción de movimiento.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !motionPoster || cfg.autoplay) return
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
+    if (connection?.saveData || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let timer: number | null = null
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        timer = window.setTimeout(() => setMotionPosterReady(true), 450)
+        observer.disconnect()
+      },
+      { rootMargin: '120px' }
+    )
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      if (timer !== null) window.clearTimeout(timer)
+    }
+  }, [cfg.autoplay, motionPoster])
 
   // ---- ¿Ya estaba viendo el vídeo? -> ofrecer continuar / reiniciar ---------
   useEffect(() => {
@@ -247,12 +275,14 @@ export function VslPlayer({
           hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
+            autoStartLoad: cfg.autoplay || preview,
             maxBufferLength: 30,
             startLevel: 0, // arranca por la calidad más baja: primer frame en cuanto antes
             abrEwmaDefaultEstimate: 500_000, // estimación inicial conservadora (0,5 Mbps)
           })
           hls.loadSource(src)
           hls.attachMedia(el)
+          hlsRef.current = hls
         } else {
           el.src = src
         }
@@ -304,6 +334,7 @@ export function VslPlayer({
     return () => {
       cancelled = true
       if (hls) hls.destroy()
+      hlsRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src])
@@ -560,8 +591,10 @@ export function VslPlayer({
   const togglePlay = () => {
     const el = videoRef.current
     if (!el) return
-    if (el.paused) el.play().catch(() => {})
-    else el.pause()
+    if (el.paused) {
+      hlsRef.current?.startLoad()
+      el.play().catch(() => {})
+    } else el.pause()
   }
 
   const unmute = () => {
@@ -637,11 +670,11 @@ export function VslPlayer({
     >
       <video
         ref={videoRef}
-        poster={video.poster_url || undefined}
+        poster={poster || undefined}
         playsInline
         // Con autoplay el vídeo va a sonar a la carga (preload auto); si no, metadata basta:
         // descarga menos al primer render (móvil/4G) y el arranque real la impulsa.
-        preload={cfg.autoplay ? 'auto' : 'metadata'}
+        preload={cfg.autoplay ? 'auto' : 'none'}
         className="h-full w-full object-contain"
         onClick={togglePlay}
         onTimeUpdate={onTimeUpdate}
@@ -706,11 +739,56 @@ export function VslPlayer({
 
       {/* Póster por encima del <video> hasta que se pinta el 1er frame real:
           evita el ~1,5s en negro mientras el navegador bufferea al arrancar. */}
-      {!firstFrame && video.poster_url && (
+      {!firstFrame && poster && (
         <div
           className="pointer-events-none absolute inset-0 bg-black bg-contain bg-center bg-no-repeat"
-          style={{ backgroundImage: `url("${video.poster_url}")` }}
+          style={{ backgroundImage: `url("${poster}")` }}
         />
+      )}
+
+      {/* Motion poster: un WebP corto generado por Bunny, no el HLS completo. La imagen estática
+          permanece debajo para que LCP no dependa de la animación ni aparezca un flash negro. */}
+      {!cfg.autoplay && !firstFrame && resumeSec === null && (
+        <button
+          type="button"
+          data-testid="vsl-poster-play"
+          onClick={togglePlay}
+          aria-label={`Reproducir ${video.slug}${video.duration_seconds > 0 ? `, duración ${fmtTime(video.duration_seconds)}` : ''}`}
+          className="group absolute inset-0 z-30 flex items-center justify-center overflow-hidden bg-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+        >
+          {poster && (
+            <img src={poster} alt="" fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
+          )}
+          {motionPosterReady && motionPoster && (
+            <img
+              src={motionPoster}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover motion-reduce:hidden"
+            />
+          )}
+          <span className="absolute inset-0 bg-black/20 transition-colors duration-150 group-hover:bg-black/28" />
+          {cfg.thumbnailText && (
+            <span className="absolute inset-x-5 top-5 max-w-xl text-left text-lg font-semibold leading-tight tracking-tight text-white drop-shadow-md sm:text-2xl">
+              {cfg.thumbnailText}
+            </span>
+          )}
+          <span className="relative flex flex-col items-center gap-2.5">
+            <span
+              className="flex h-16 w-16 translate-x-px items-center justify-center rounded-full text-white shadow-[0_8px_30px_rgba(0,0,0,0.35)] ring-1 ring-white/25 transition-[transform,filter] duration-150 group-hover:scale-105 group-hover:brightness-110 group-active:scale-[0.97] sm:h-[72px] sm:w-[72px]"
+              style={{ backgroundColor: cfg.primaryColor }}
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="white" aria-hidden="true">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </span>
+            {cfg.showDurationOnPlay && video.duration_seconds > 0 && (
+              <span className="rounded-full bg-black/65 px-3 py-1 text-xs font-medium tabular-nums text-white backdrop-blur-sm">
+                Ver vídeo · {fmtTime(video.duration_seconds)}
+              </span>
+            )}
+          </span>
+        </button>
       )}
 
       {/* Prueba social: "viendo ahora" / "ya lo vieron" (esquina superior izquierda) */}
@@ -790,7 +868,7 @@ export function VslPlayer({
       )}
 
       {/* Overlay para activar sonido (autoplay muted) */}
-      {muted && resumeSec === null && (
+      {playing && muted && resumeSec === null && (
         <button
           onClick={unmute}
           className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/25 text-foreground transition hover:bg-black/35"

@@ -35,10 +35,12 @@ test('derivadosDeSource: Bunny genera thumbnail, preview animado y storyboard; o
   assert.deepEqual(derivadosDeSource(null), { playlist: null, thumbnail: null, preview: null, storyboard: null })
 })
 
-test('velocidad de carga: HLS arranca por la calidad más baja y preload se adapta al autoplay', () => {
+test('velocidad de carga: poster-first no descarga fragmentos HLS hasta play', () => {
   assert.ok(player.includes('startLevel: 0'), 'fast-start: primer fragmento de menor calidad')
   assert.ok(player.includes('abrEwmaDefaultEstimate'), 'ABR conservador al arrancar')
-  assert.ok(player.includes("cfg.autoplay ? 'auto' : 'metadata'"), 'preload selectivo')
+  assert.ok(player.includes("cfg.autoplay ? 'auto' : 'none'"), 'sin autoplay no precarga el vídeo')
+  assert.ok(player.includes('autoStartLoad: cfg.autoplay || preview'), 'HLS no descarga fragmentos antes del play')
+  assert.ok(player.includes('hlsRef.current?.startLoad()'), 'el clic inicia la descarga HLS')
 })
 
 test('customización del reproductor: botón central y fullscreen son configurables', () => {

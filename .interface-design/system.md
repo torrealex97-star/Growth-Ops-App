@@ -20,3 +20,5 @@ Dirección acordada el 2026-09-15: dashboards oscuros con tarjetas suaves, gráf
 - Corrección de referencia: el funnel protagonista es una silueta horizontal continua, con etapas rectangulares unidas por transiciones inclinadas; cifras dentro y conversión en las conexiones. No sustituirlo por barras independientes. Geometría esquemática señalada, cantidades y conversiones reales. `ConnectedFunnel` compartido por Métricas y Dashboard.
 
 - Auditoría: funnel inicial en Dashboard con comisiones laterales y KPI debajo. `ConnectedFunnel` usa container query a 620px para alternar silueta horizontal y etapas apiladas legibles; no forzar scroll horizontal en móvil. Finanzas prioriza evolución con resúmenes laterales.
+
+- VSL: patrón poster-first con una sola llamada visual a play. Pintar primero la miniatura estática; cargar el motion poster Bunny (`preview.webp`) solo al entrar en viewport y respetar ahorro de datos y movimiento reducido. Sin autoplay, no descargar fragmentos HLS hasta interacción. Mantener duración y texto opcional discretos, foco visible y fallback estático para fuentes externas.
