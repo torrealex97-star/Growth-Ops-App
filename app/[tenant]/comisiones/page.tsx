@@ -215,6 +215,58 @@ export default function CommissionsPage() {
       }
       setLinkTemplates((templatesResult.data ?? []) as LinkTemplate[])
       setActiveCampaigns((campaignsResult.data ?? []) as ActiveCampaign[])
+    } else {
+      const profile = sesion.user as {
+        full_name?: string | null
+        tracking_code?: string | null
+        affiliate_code?: string | null
+        pays_commissions?: boolean | null
+        roles?: { key?: string } | null
+      }
+      const canSelfServe =
+        profile.pays_commissions !== false && ['setter', 'closer', 'cold_caller', 'affiliate'].includes(role)
+      if (!canSelfServe) {
+        setLoading(false)
+        return
+      }
+      const ownMember: CommissionableMember = {
+        id: sesion.userId,
+        full_name: profile.full_name || 'Mi perfil',
+        tracking_code: profile.tracking_code ?? null,
+        affiliate_code: profile.affiliate_code ?? null,
+        roles: profile.roles?.key ? { key: profile.roles.key } : null,
+      }
+      setMembers([ownMember])
+      setCommissionableMembers([ownMember])
+
+      // Autoservicio: cada miembro solo solicita destinos activos que RLS le permite leer.
+      // Se lanzan en paralelo para no añadir una cascada a la carga de comisiones.
+      const [templatesResult, campaignsResult] = await Promise.all([
+        supabase
+          .from('link_templates')
+          .select('id, name, base_url, applies_to')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .contains('applies_to', [role])
+          .order('name'),
+        supabase
+          .from('affiliate_campaign_members')
+          .select('affiliate_campaigns(id, name, base_url, is_active)')
+          .eq('tenant_id', tenantId)
+          .eq('affiliate_id', sesion.userId),
+      ])
+      setLinkTemplates((templatesResult.data ?? []) as LinkTemplate[])
+      const assignedCampaigns = (
+        (campaignsResult.data as unknown as {
+          affiliate_campaigns: { id: string; name: string; base_url: string; is_active: boolean } | null
+        }[]) ?? []
+      )
+        .map((row) => row.affiliate_campaigns)
+        .filter((campaign): campaign is { id: string; name: string; base_url: string; is_active: boolean } =>
+          Boolean(campaign?.is_active)
+        )
+        .map(({ id, name, base_url }) => ({ id, name, base_url }))
+      setActiveCampaigns(assignedCampaigns)
     }
 
     setLoading(false)
@@ -486,27 +538,30 @@ export default function CommissionsPage() {
   const selectedMember = filterMember === 'all' ? null : (members.find((member) => member.id === filterMember) ?? null)
   const selectedCommissionableMember =
     filterMember === 'all' ? null : (commissionableMembers.find((member) => member.id === filterMember) ?? null)
-  const selectedMemberRole = selectedCommissionableMember
-    ? Array.isArray(selectedCommissionableMember.roles)
-      ? selectedCommissionableMember.roles[0]?.key
-      : selectedCommissionableMember.roles?.key
+  const ownCommissionableMember = canApprove
+    ? null
+    : (commissionableMembers.find((member) => member.id === currentUserId) ?? null)
+  const linkOwner = selectedCommissionableMember ?? ownCommissionableMember
+  const linkOwnerRole = linkOwner
+    ? Array.isArray(linkOwner.roles)
+      ? linkOwner.roles[0]?.key
+      : linkOwner.roles?.key
     : null
-  const selectedMemberCode =
-    selectedCommissionableMember?.tracking_code || selectedCommissionableMember?.affiliate_code || null
+  const linkOwnerCode = linkOwner?.tracking_code || linkOwner?.affiliate_code || null
   const selectedMemberLinks =
-    selectedMemberRole && selectedMemberCode
+    linkOwnerRole && linkOwnerCode
       ? [
           ...activeCampaigns.map((campaign) => ({
             id: `campaign:${campaign.id}`,
             name: campaign.name,
-            url: enlaceDeRol(campaign.base_url, selectedMemberRole, selectedMemberCode),
+            url: enlaceDeRol(campaign.base_url, linkOwnerRole, linkOwnerCode),
           })),
           ...linkTemplates
-            .filter((template) => template.applies_to?.includes(selectedMemberRole))
+            .filter((template) => template.applies_to?.includes(linkOwnerRole))
             .map((template) => ({
               id: `template:${template.id}`,
               name: template.name,
-              url: enlaceDeRol(template.base_url, selectedMemberRole, selectedMemberCode),
+              url: enlaceDeRol(template.base_url, linkOwnerRole, linkOwnerCode),
             })),
         ].filter((link, index, links) => links.findIndex((candidate) => candidate.url === link.url) === index)
       : []
@@ -518,7 +573,7 @@ export default function CommissionsPage() {
     try {
       await navigator.clipboard.writeText(activeMemberLink.url)
       setCopiedLink(true)
-      toast.success('Enlace del setter copiado', { description: activeMemberLink.name })
+      toast.success('Enlace personal copiado', { description: activeMemberLink.name })
       setTimeout(() => setCopiedLink(false), 2000)
     } catch {
       toast.error('No se pudo copiar el enlace')
@@ -567,7 +622,7 @@ export default function CommissionsPage() {
         </p>
       )}
 
-      {selectedMember && canApprove && selectedCommissionableMember && (
+      {linkOwner && (selectedMember || !canApprove) && (
         <section className="rounded-2xl border border-brand-500/30 bg-card p-5" aria-labelledby="member-link-title">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0 space-y-1">
@@ -577,10 +632,12 @@ export default function CommissionsPage() {
                 </span>
                 <div>
                   <h2 id="member-link-title" className="text-sm font-semibold text-foreground">
-                    Enlace para atribuir ventas a {selectedMember.full_name}
+                    {selectedMember
+                      ? `Enlace para atribuir ventas a ${selectedMember.full_name}`
+                      : 'Tu enlace personal de atribución'}
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Compártelo tal cual. El parámetro personal identifica al setter en contactos, agendas y ventas.
+                    Compártelo tal cual. El parámetro personal identifica el origen en contactos, agendas y ventas.
                   </p>
                 </div>
               </div>
@@ -621,13 +678,13 @@ export default function CommissionsPage() {
             ) : (
               <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
                 <p className="text-sm text-amber-300">
-                  {selectedMemberCode
+                  {linkOwnerCode
                     ? 'Falta definir el destino del enlace para este rol.'
                     : 'Este miembro todavía no tiene código de atribución.'}
                 </p>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={selectedMemberCode ? `/${tenant}/recursos/enlaces` : `/${tenant}/settings/users`}>
-                    {selectedMemberCode ? 'Configurar enlace' : 'Generar código'}
+                  <Link href={linkOwnerCode ? `/${tenant}/recursos/enlaces` : `/${tenant}/settings/users`}>
+                    {linkOwnerCode ? 'Ver enlaces y recursos' : 'Generar código'}
                   </Link>
                 </Button>
               </div>
@@ -762,6 +819,7 @@ export default function CommissionsPage() {
         future={filteredFuture}
         loading={loading}
         restricted={esColaborador}
+        tenant={tenant}
       />
 
       {canApprove && filterMember !== 'all' && ['affiliate', 'collaborator', 'all'].includes(filterType) && (

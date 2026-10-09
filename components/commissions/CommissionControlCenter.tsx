@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ArrowRight, Banknote, Clock3, ReceiptText, Users } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -39,11 +40,13 @@ export function CommissionControlCenter({
   future,
   loading,
   restricted,
+  tenant,
 }: {
   rows: CommissionDashboardRow[]
   future: FutureCommission[]
   loading: boolean
   restricted: boolean
+  tenant: string
 }) {
   const settlement = commissionSettlementSummary(rows)
   const nextProjected = future
@@ -140,7 +143,21 @@ export function CommissionControlCenter({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="w-5 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
-                      <p className="truncate text-sm font-medium text-foreground">{person.name}</p>
+                      {restricted ? (
+                        <p className="truncate text-sm font-medium text-foreground">{person.name}</p>
+                      ) : (
+                        <Link
+                          href={`/${tenant}/comisiones?member=${person.userId}`}
+                          className="group inline-flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground underline-offset-4 hover:text-brand-300 hover:underline"
+                          aria-label={`Abrir perfil de comisiones de ${person.name}`}
+                        >
+                          <span className="truncate">{person.name}</span>
+                          <ArrowRight
+                            className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+                            aria-hidden="true"
+                          />
+                        </Link>
+                      )}
                     </div>
                     <p className="ml-7 mt-0.5 text-xs text-muted-foreground">{ROLE_LABEL[person.participantType]}</p>
                     <div className="ml-7 mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
@@ -190,7 +207,7 @@ export function CommissionControlCenter({
         {!restricted && team.length > 0 && (
           <div className="flex items-center gap-2 border-t border-border px-5 py-3 text-xs text-muted-foreground sm:px-6">
             <ReceiptText className="h-3.5 w-3.5" aria-hidden="true" />
-            Cada importe se puede auditar en el detalle inferior
+            Abre una persona para revisar sus ventas, enlace, facturas y liquidaciones
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </div>
         )}
