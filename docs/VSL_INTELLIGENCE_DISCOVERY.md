@@ -221,11 +221,20 @@ Referencias oficiales consultadas el 9-oct-2026:
 
 ## 11. Design Read para las fases de UI
 
+**Regla rectora:** `FUNCTION > CLARITY > POLISH`. Cada pestaña responde una sola pregunta:
+Engagement = cuánto ven; Traffic = de dónde vienen; Audience = quiénes son; Conversions = qué acción
+ocurrió; Revenue = qué resultado comercial verificable siguió. El orden y los nombres no cambian
+entre vídeos.
+
 - **Intento:** cockpit de diagnóstico para un Growth Operator, no galería de tarjetas.
 - **Densidad:** 8/10; números tabulares, líneas/divisores, detalle bajo demanda.
 - **Variación:** 4/10; resumen compacto, gráfica central dominante, tablas secundarias.
 - **Movimiento:** 2/10; solo feedback de selección/hover, sin animación decorativa.
 - **Marca:** tokens del tenant; WDC conserva rosa y Evergreen su acento sin forks.
 - **Jerarquía:** Resumen → Retención → Audiencia → Tráfico → Conversiones → Acciones.
+- **Lectura en cinco segundos:** una métrica principal dominante, estado/benchmark y siguiente
+  acción; KPIs secundarios después; fórmulas, numeradores y tablas bajo “Ver detalle”.
+- **Estados:** carga, vacío, error y dato insuficiente son explícitos y visualmente distintos; nunca
+  un spinner infinito, una pantalla en blanco ni un fallo presentado como cero.
 - **Anti-slop:** sin card-dentro-de-card, badges para todo, glassmorphism, glows ni gradientes
   gratuitos. En móvil, una columna, tabla→lista detallable y heatmaps con scroll controlado.
