@@ -16,6 +16,7 @@ import { estadoAlSincronizar, mapearEstadoExterno } from '@/lib/appointments/sta
 import { NORMALIZADOR_GHL, idEventoGhl, sobreCrudoGhl, tipoEventoGhl } from '@/lib/eventos/ghl'
 import { hechoDesdeSobre } from '@/lib/eventos/canonico'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { enriquecerAtribucionDesdeContactoGhl } from '@/lib/integrations/ghl-attribution'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
 //   - lead opt-in (solo contacto + atribución, sin agenda)
@@ -346,6 +347,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       string | null
     const status = mapStatus(pick(payload.status, payload.appointmentStatus, payload.appointment_status))
     const source = pick(payload.source) as string | null
+    // Los webhooks de calendario de GHL suelen omitir la atribución aunque siga disponible en la
+    // ficha completa del contacto. La recuperamos una sola vez y sin bloquear la agenda si GHL
+    // está lento o no conserva esos datos.
+    const enriquecido = await enriquecerAtribucionDesdeContactoGhl(payload, ghlContactId, cfg.GHL_API_TOKEN)
+    payload = enriquecido.payload
     const trayectoria = leerTrayectoria(payload)
     const attributionSnapshot = {
       attribution_first: serializarToque(trayectoria.first),

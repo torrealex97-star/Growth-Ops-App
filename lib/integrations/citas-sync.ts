@@ -1,9 +1,21 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { atribuirDesdePayload, leerTrayectoria, serializarToque, type ToqueAtribucion } from '@/lib/contacts/atribucion'
+import {
+  atribuirDesdePayload,
+  leerToque,
+  leerTrayectoria,
+  registrarToque,
+  serializarToque,
+  type ToqueAtribucion,
+} from '@/lib/contacts/atribucion'
 import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
 import { mejorNombre } from '@/lib/contacts/resolve'
 import { estadoAlSincronizar, mapearEstadoExterno } from '@/lib/appointments/status'
 import { resolveUserIdByEmail } from '@/lib/tracking'
+import {
+  combinarAtribucionGhl,
+  enriquecerAtribucionDesdeContactoGhl,
+  tieneEvidenciaAtribucionGhl,
+} from '@/lib/integrations/ghl-attribution'
 
 // Sincronización de CITAS (Calendly + GHL): la ÚNICA implementación, usada por
 //   · el botón manual de Integraciones › history-sync (ventana completa),
@@ -355,6 +367,8 @@ export async function syncGhl(
   // Cache ghl_contact_id → contacto local (o null si GHL no lo tiene): evita re-crear
   // contactos repetidos dentro de la misma pasada.
   const contactoCache = new Map<string, { id: string } | null>()
+  // Cache de la ficha remota: varios eventos del mismo contacto no repiten GET /contacts/:id.
+  const payloadContactoCache = new Map<string, Json | null>()
   // Cache compartida de definiciones de custom fields (1 query por campo nuevo, no por contacto).
   const customDefsCache = new Map<string, Map<string, string>>()
   let startAfterId = ''
@@ -387,6 +401,10 @@ export async function syncGhl(
     const contacts = body.contacts ?? []
     for (const contact of contacts) {
       const saved = await findOrCreateContact(sb, tenantId, contact, { customDefsCache })
+      const externalId = text(contact.id) || text(contact.contactId)
+      // El listado puede ser una proyección sin attributionSource. Solo evita el GET individual
+      // cuando realmente contiene evidencia; cachear una proyección vacía perdería first/last.
+      if (externalId && tieneEvidenciaAtribucionGhl(contact)) payloadContactoCache.set(externalId, contact)
       if (saved?.created) imported++
       else if (saved) updated++
     }
@@ -500,15 +518,12 @@ export async function syncGhl(
         contact = { data: found.data }
       }
       if (!contact.data && lazyContacts) {
-        const contactoResponse = await fetch(
-          `https://services.leadconnectorhq.com/contacts/${encodeURIComponent(ghlContactId)}`,
-          { headers, signal: AbortSignal.timeout(15_000) }
-        )
-        const contactoBody = (await contactoResponse.json().catch(() => ({}))) as { contact?: Json }
-        const creado =
-          contactoResponse.ok && contactoBody.contact
-            ? await findOrCreateContact(sb, tenantId, contactoBody.contact, { customDefsCache })
-            : null
+        const enriquecido = await enriquecerAtribucionDesdeContactoGhl({}, ghlContactId, token)
+        const contactoBody = { contact: enriquecido.contacto ?? undefined }
+        const creado = contactoBody.contact
+          ? await findOrCreateContact(sb, tenantId, contactoBody.contact, { customDefsCache })
+          : null
+        payloadContactoCache.set(ghlContactId, contactoBody.contact ?? null)
         contactoCache.set(ghlContactId, creado ? { id: creado.id } : null)
         contact = { data: creado ? { id: creado.id } : null }
       }
@@ -517,17 +532,46 @@ export async function syncGhl(
       // 97), así que esto no escribe NADA y cero consultas (toque vacío ⇒ sin datos). Si los
       // funnels de GHL empiezan a capturar UTMs, la sync por pull los conserva igual que el
       // webhook, con la fecha del evento y sin presentar un toque antiguo como último.
+      let eventoConAtribucion = event
+      let contactoRemoto = payloadContactoCache.get(ghlContactId)
+      if (contactoRemoto === undefined) {
+        const enriquecido = await enriquecerAtribucionDesdeContactoGhl(event, ghlContactId, token)
+        eventoConAtribucion = enriquecido.payload
+        contactoRemoto = enriquecido.contacto
+        payloadContactoCache.set(ghlContactId, contactoRemoto)
+      } else if (contactoRemoto) {
+        eventoConAtribucion = combinarAtribucionGhl(event, contactoRemoto)
+      }
+      const trayectoriaGhl = leerTrayectoria(eventoConAtribucion)
+      const toquePlanoGhl =
+        trayectoriaGhl.booking ?? trayectoriaGhl.last ?? trayectoriaGhl.first ?? leerToque(eventoConAtribucion)
       try {
-        const atribuido = await atribuirDesdePayload(sb, tenantId, contact.data.id, event, {
-          source: 'ghl',
-          enEl: text(event.createdAt) || startsAt,
-        })
-        if (!atribuido.resultado.ok)
-          console.warn('[atribucion][ghl] no se pudo registrar el toque:', atribuido.resultado.error)
+        const toques = [
+          trayectoriaGhl.first,
+          trayectoriaGhl.second,
+          trayectoriaGhl.last,
+          trayectoriaGhl.booking,
+        ].filter((item, index, all): item is ToqueAtribucion => Boolean(item) && all.indexOf(item) === index)
+        if (toques.length > 0) {
+          const base = Date.parse(text(event.createdAt) || startsAt)
+          for (let i = 0; i < toques.length; i += 1) {
+            const resultado = await registrarToque(sb, tenantId, contact.data.id, {
+              ...toques[i],
+              enEl: new Date(base + i).toISOString(),
+            })
+            if (!resultado.ok) console.warn('[atribucion][ghl] no se pudo registrar el toque:', resultado.error)
+          }
+        } else {
+          const atribuido = await atribuirDesdePayload(sb, tenantId, contact.data.id, eventoConAtribucion, {
+            source: 'ghl',
+            enEl: text(event.createdAt) || startsAt,
+          })
+          if (!atribuido.resultado.ok)
+            console.warn('[atribucion][ghl] no se pudo registrar el toque:', atribuido.resultado.error)
+        }
       } catch (e) {
         console.warn('[atribucion][ghl] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
       }
-      const trayectoriaGhl = leerTrayectoria(event)
       // Misma traducción que el webhook (lib/appointments/status.ts). Un estado que no se reconoce
       // se queda en 'scheduled', que es lo que GHL da por defecto a una cita recién creada.
       const status = mapearEstadoExterno(text(event.appointmentStatus) || text(event.status)) || 'scheduled'
@@ -561,9 +605,14 @@ export async function syncGhl(
           : trayectoriaGhl.first || trayectoriaGhl.last || trayectoriaGhl.booking
             ? 'partial'
             : 'none',
+        ...(toquePlanoGhl.utmSource ? { utm_source: toquePlanoGhl.utmSource } : {}),
+        ...(toquePlanoGhl.utmMedium ? { utm_medium: toquePlanoGhl.utmMedium } : {}),
+        ...(toquePlanoGhl.utmCampaign ? { utm_campaign: toquePlanoGhl.utmCampaign } : {}),
+        ...(toquePlanoGhl.utmContent ? { utm_content: toquePlanoGhl.utmContent } : {}),
+        ...(toquePlanoGhl.utmTerm ? { utm_term: toquePlanoGhl.utmTerm } : {}),
         ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
         calendar_name: text(calendar.name) || 'GoHighLevel',
-        raw_payload: event,
+        raw_payload: eventoConAtribucion,
       }
       if (existing.data) {
         const result = await sb.from('appointments').update(values).eq('tenant_id', tenantId).eq('id', existing.data.id)

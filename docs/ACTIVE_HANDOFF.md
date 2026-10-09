@@ -1,3 +1,19 @@
+# CERRADO EN RAMA · Enriquecimiento de atribución GHL por contacto (9-oct-2026, Codex)
+
+- **Rama:** `codex/ghl-attribution-enrichment`, desde `main` posterior al PR #425.
+- **Causa raíz:** los eventos de calendario GHL no incluyen normalmente first/last attribution,
+  aunque esos datos pueden seguir disponibles en `GET /contacts/:contactId`. El webhook y el pull
+  solo analizaban el evento, por lo que una cita nueva podía entrar sin UTMs.
+- **Implementado:** cuando el evento no contiene evidencia, webhook y pull consultan una sola vez la
+  ficha completa del contacto. La pasada hace caché por `ghl_contact_id`, usa timeout de 10 s y
+  degrada sin bloquear la agenda. Solo se mezclan campos de atribución: nunca fechas, estados ni IDs.
+- **Persistencia:** first/second/last declarados por GHL alimentan `contact_attributions`; la agenda
+  conserva snapshots auditables y columnas UTM planas. No se inventa señal si la ficha tampoco la
+  tiene y first-touch existente nunca se sobrescribe.
+- **TESTED:** quality completa PASS (1.538 pruebas, 3 omitidas; métricas 788/788), typecheck PASS,
+  build de producción PASS. Pendiente CI, merge, despliegue y una entrega real de GHL para evidencia
+  externa; la API oficial exige `contacts.readonly` y token de subcuenta.
+
 # CERRADO EN RAMA · Histórico Calendly reanudable y atribución auditada (9-oct-2026, Codex)
 
 - **Rama única:** `codex/calendly-history-attribution`, desde `main` posterior al PR #424. Alcance:
