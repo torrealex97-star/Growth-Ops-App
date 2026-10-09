@@ -31,8 +31,38 @@ export async function POST(req: Request) {
         lead_name  = COALESCE(${cleanName}, lead_name),
         updated_at = now()
       WHERE id = ${sessionId}
-      RETURNING lead_email, max_position, duration
+      RETURNING id, tenant_id, lead_email, max_position, duration
     `
+
+    if (sess && cleanEmail) {
+      const [contact] = await sql`
+        SELECT id FROM contacts
+        WHERE tenant_id = ${sess.tenant_id} AND lower(email) = ${cleanEmail}
+        ORDER BY created_at ASC LIMIT 1
+      `
+      const [playback] = await sql`
+        SELECT playback_id, viewer_id FROM vsl_playback_sessions
+        WHERE tenant_id = ${sess.tenant_id} AND legacy_session_id = ${sess.id}
+        ORDER BY started_at DESC LIMIT 1
+      `
+      if (contact && playback) {
+        await sql`
+          INSERT INTO vsl_viewer_identities (tenant_id, viewer_id, contact_id, link_source)
+          VALUES (${sess.tenant_id}, ${playback.viewer_id}, ${contact.id}, 'verified_form_email')
+          ON CONFLICT (tenant_id, viewer_id, contact_id)
+          DO UPDATE SET revoked_at = NULL, linked_at = now(), link_source = EXCLUDED.link_source
+        `
+        await sql`
+          INSERT INTO vsl_tracking_events (
+            tenant_id, playback_id, event_id, event_type, occurred_at, visibility_state
+          ) VALUES (
+            ${sess.tenant_id}, ${playback.playback_id},
+            ${`identity:${playback.playback_id}:${contact.id}`}, 'video_viewer_identified', now(), 'visible'
+          )
+          ON CONFLICT (tenant_id, event_id) DO NOTHING
+        `
+      }
+    }
 
     // Al asociar el email, copia de inmediato el % ya visto al contacto (para Leads / cold caller).
     await syncContactWatchPct(sess)

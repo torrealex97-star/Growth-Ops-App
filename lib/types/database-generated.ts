@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-08T13:11:39.275Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-09T09:08:10.858Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -5650,6 +5650,94 @@ export type EsquemaPublico = {
         pays_commissions: boolean | undefined
       }
     }
+    VslEmbedLocations: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        video_id: string | null
+        video_version_id: string | null
+        normalized_url: string | null
+        domain: string | null
+        placement: string | null
+        first_seen_at: string | null
+        last_seen_at: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        video_id: string | null | undefined
+        video_version_id: string | null | undefined
+        normalized_url: string | null | undefined
+        domain: string | null | undefined
+        placement: string | null | undefined
+        first_seen_at: string | null | undefined
+        last_seen_at: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        video_id: string | undefined
+        video_version_id: string | undefined
+        normalized_url: string | undefined
+        domain: string | undefined
+        placement: string | undefined
+        first_seen_at: string | undefined
+        last_seen_at: string | undefined
+        created_at: string | undefined
+      }
+    }
+    VslPlaybackSessions: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        video_id: string | null
+        video_version_id: string | null
+        embed_location_id: string | null
+        legacy_session_id: string | null
+        viewer_id: string | null
+        session_id: string | null
+        playback_id: string | null
+        started_at: string | null
+        ended_at: string | null
+        last_event_at: string | null
+        tracking_schema_version: number | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        video_id: string | null | undefined
+        video_version_id: string | null | undefined
+        embed_location_id: string | null | undefined
+        legacy_session_id: string | null | undefined
+        viewer_id: string | null | undefined
+        session_id: string | null | undefined
+        playback_id: string | null | undefined
+        started_at: string | null | undefined
+        ended_at: string | null | undefined
+        last_event_at: string | null | undefined
+        tracking_schema_version: number | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        video_id: string | undefined
+        video_version_id: string | undefined
+        embed_location_id: string | undefined
+        legacy_session_id: string | undefined
+        viewer_id: string | undefined
+        session_id: string | undefined
+        playback_id: string | undefined
+        started_at: string | undefined
+        ended_at: string | undefined
+        last_event_at: string | undefined
+        tracking_schema_version: number | undefined
+        created_at: string | undefined
+      }
+    }
     VslSessions: {
       Row: {
         id: string | null
@@ -5715,6 +5803,97 @@ export type EsquemaPublico = {
         tenant_id: string | undefined
       }
     }
+    VslTrackingEvents: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        playback_id: string | null
+        event_id: string | null
+        event_type: string | null
+        occurred_at: string | null
+        received_at: string | null
+        playhead_seconds: number | string | null
+        duration_seconds: number | string | null
+        playback_rate: number | string | null
+        visibility_state: string | null
+        source: string | null
+        schema_version: number | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        playback_id: string | null | undefined
+        event_id: string | null | undefined
+        event_type: string | null | undefined
+        occurred_at: string | null | undefined
+        received_at: string | null | undefined
+        playhead_seconds: number | string | null | undefined
+        duration_seconds: number | string | null | undefined
+        playback_rate: number | string | null | undefined
+        visibility_state: string | null | undefined
+        source: string | null | undefined
+        schema_version: number | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        playback_id: string | undefined
+        event_id: string | undefined
+        event_type: string | undefined
+        occurred_at: string | undefined
+        received_at: string | undefined
+        playhead_seconds: number | string | undefined
+        duration_seconds: number | string | undefined
+        playback_rate: number | string | undefined
+        visibility_state: string | undefined
+        source: string | undefined
+        schema_version: number | undefined
+        created_at: string | undefined
+      }
+    }
+    VslVideoVersions: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        video_id: string | null
+        version_number: number | null
+        provider: string | null
+        provider_video_id: string | null
+        source_url: string | null
+        duration_seconds: number | string | null
+        published_at: string | null
+        replaced_at: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        video_id: string | null | undefined
+        version_number: number | null | undefined
+        provider: string | null | undefined
+        provider_video_id: string | null | undefined
+        source_url: string | null | undefined
+        duration_seconds: number | string | null | undefined
+        published_at: string | null | undefined
+        replaced_at: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        video_id: string | undefined
+        version_number: number | undefined
+        provider: string | undefined
+        provider_video_id: string | undefined
+        source_url: string | undefined
+        duration_seconds: number | string | undefined
+        published_at: string | undefined
+        replaced_at: string | undefined
+        created_at: string | undefined
+      }
+    }
     VslVideos: {
       Row: {
         id: string | null
@@ -5754,6 +5933,79 @@ export type EsquemaPublico = {
         updated_at: string | undefined
         tenant_id: string | undefined
         deleted_at: string | undefined
+      }
+    }
+    VslViewerIdentities: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        viewer_id: string | null
+        contact_id: string | null
+        link_source: string | null
+        linked_at: string | null
+        revoked_at: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        viewer_id: string | null | undefined
+        contact_id: string | null | undefined
+        link_source: string | null | undefined
+        linked_at: string | null | undefined
+        revoked_at: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        viewer_id: string | undefined
+        contact_id: string | undefined
+        link_source: string | undefined
+        linked_at: string | undefined
+        revoked_at: string | undefined
+        created_at: string | undefined
+      }
+    }
+    VslWatchIntervals: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        playback_id: string | null
+        batch_id: string | null
+        sequence_number: number | null
+        start_second: number | string | null
+        end_second: number | string | null
+        playback_rate: number | string | null
+        occurred_at: string | null
+        received_at: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        playback_id: string | null | undefined
+        batch_id: string | null | undefined
+        sequence_number: number | null | undefined
+        start_second: number | string | null | undefined
+        end_second: number | string | null | undefined
+        playback_rate: number | string | null | undefined
+        occurred_at: string | null | undefined
+        received_at: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        playback_id: string | undefined
+        batch_id: string | undefined
+        sequence_number: number | undefined
+        start_second: number | string | undefined
+        end_second: number | string | undefined
+        playback_rate: number | string | undefined
+        occurred_at: string | undefined
+        received_at: string | undefined
+        created_at: string | undefined
       }
     }
     YoutubeUploads: {

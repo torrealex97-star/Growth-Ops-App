@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import type { VslConfig } from '@/lib/vsl/types'
 import { formatNumber } from '@/lib/utils'
 import type HlsType from 'hls.js'
+import type { VslWatchInterval } from '@/lib/vsl/tracking'
 
 /** Los navegadores WebKit (Safari) exponen fullscreen con prefijo; el DOM estándar no lo tipa. */
 interface WebkitFullscreenDocument extends Document {
@@ -104,8 +105,14 @@ export function VslPlayer({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const sessionRef = useRef<string | null>(null)
+  const playbackRef = useRef<string | null>(null)
   const watchedRef = useRef<Set<number>>(new Set())
   const pendingRef = useRef<Set<number>>(new Set())
+  const pendingIntervalsRef = useRef<VslWatchInterval[]>([])
+  const lastSampleRef = useRef<{ media: number; wall: number } | null>(null)
+  const hasPausedRef = useRef(false)
+  const metadataReadyRef = useRef(false)
+  const readySentRef = useRef(false)
   const maxReachedRef = useRef(0)
   const playSentRef = useRef(false)
   const hasPlayedRef = useRef(false)
@@ -188,12 +195,22 @@ export function VslPlayer({
       if (!el || !sessionRef.current) return
       const seconds = Array.from(pendingRef.current)
       pendingRef.current = new Set()
-      if (event === 'beat' && seconds.length === 0) return
+      const intervals = pendingIntervalsRef.current
+      pendingIntervalsRef.current = []
+      if (event === 'beat' && seconds.length === 0 && intervals.length === 0) return
+      const eventId = crypto?.randomUUID?.() ?? `evt_${Date.now()}_${Math.random().toString(36).slice(2)}`
       const payload = JSON.stringify({
         sessionId: sessionRef.current,
+        playbackId: playbackRef.current,
+        eventId,
+        batchId: eventId,
         seconds,
+        intervals,
         position: el.currentTime,
         duration: el.duration || video.duration_seconds || 0,
+        playbackRate: el.playbackRate || 1,
+        visibilityState: document.visibilityState,
+        occurredAt: new Date().toISOString(),
         event,
       })
       const url = '/api/vsl/track'
@@ -257,6 +274,11 @@ export function VslPlayer({
         .then((d) => {
           if (!cancelled && d?.sessionId) {
             sessionRef.current = d.sessionId
+            playbackRef.current = d.playbackId || null
+            if (metadataReadyRef.current && !readySentRef.current) {
+              readySentRef.current = true
+              sendBeat('ready')
+            }
             // avisa al parent de que ya hay sesión (para identify diferido) e incluye el anonId,
             // para que loader.js pueda enganchar el visionado ANÓNIMO a una cita de Calendly
             // (lo pasa como salesforce_uuid en el enlace, aunque el lead no haga optin).
@@ -297,15 +319,17 @@ export function VslPlayer({
       sendBeat('beat')
     }, BEAT_MS)
     const onHide = () => sendBeat('unload')
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') sendBeat('unload')
+    }
     window.addEventListener('pagehide', onHide)
     window.addEventListener('beforeunload', onHide)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') sendBeat('unload')
-    })
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       clearInterval(id)
       window.removeEventListener('pagehide', onHide)
       window.removeEventListener('beforeunload', onHide)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [sendBeat])
 
@@ -375,6 +399,21 @@ export function VslPlayer({
       if (cfg.ctaPause) el.pause()
     }
     if (!el.paused && !el.seeking) {
+      const wall = performance.now()
+      const previous = lastSampleRef.current
+      if (previous) {
+        const mediaDelta = el.currentTime - previous.media
+        const wallDelta = (wall - previous.wall) / 1000
+        const plausibleDelta = Math.max(1.25, wallDelta * (el.playbackRate || 1) + 0.75)
+        if (mediaDelta > 0 && mediaDelta <= plausibleDelta && document.visibilityState === 'visible') {
+          pendingIntervalsRef.current.push({
+            start: previous.media,
+            end: el.currentTime,
+            rate: el.playbackRate || 1,
+          })
+        }
+      }
+      lastSampleRef.current = { media: el.currentTime, wall }
       const sec = Math.floor(el.currentTime)
       if (!watchedRef.current.has(sec)) {
         watchedRef.current.add(sec)
@@ -400,7 +439,10 @@ export function VslPlayer({
 
   const onSeeking = () => {
     const el = videoRef.current
-    if (!el || !cfg.lockSeek) return
+    if (!el) return
+    lastSampleRef.current = null
+    sendBeat('seek')
+    if (!cfg.lockSeek) return
     // Permite rebobinar, impide adelantar más allá de lo ya visto.
     if (el.currentTime > maxReachedRef.current + 0.6) el.currentTime = maxReachedRef.current
   }
@@ -411,14 +453,19 @@ export function VslPlayer({
     setPlaying(true)
     hasPlayedRef.current = true
     // Solo se envía si ya hay sesión; si no, se enviará en el callback de creación de sesión.
-    if (sessionRef.current && !playSentRef.current) {
+    if (sessionRef.current && hasPausedRef.current) {
+      sendBeat('resume')
+    } else if (sessionRef.current && !playSentRef.current) {
       playSentRef.current = true
       sendBeat('play')
     }
+    hasPausedRef.current = false
   }
   const onPause = () => {
     setPlaying(false)
-    sendBeat('beat')
+    lastSampleRef.current = null
+    hasPausedRef.current = true
+    sendBeat('pause')
     maybeShowExitHook()
   }
   const onEnded = () => {
@@ -437,6 +484,14 @@ export function VslPlayer({
           .then(() => setPlaying(true))
           .catch(() => {})
       }
+    }
+  }
+
+  const onLoadedMetadata = () => {
+    metadataReadyRef.current = true
+    if (sessionRef.current && !readySentRef.current) {
+      readySentRef.current = true
+      sendBeat('ready')
     }
   }
 
@@ -590,6 +645,7 @@ export function VslPlayer({
         className="h-full w-full object-contain"
         onClick={togglePlay}
         onTimeUpdate={onTimeUpdate}
+        onLoadedMetadata={onLoadedMetadata}
         onSeeking={onSeeking}
         onPlay={onPlay}
         onPlaying={onPlaying}
