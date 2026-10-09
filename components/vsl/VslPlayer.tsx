@@ -751,6 +751,7 @@ export function VslPlayer({
       {!cfg.autoplay && !firstFrame && resumeSec === null && (
         <button
           type="button"
+          data-testid="vsl-poster-play"
           onClick={togglePlay}
           aria-label={`Reproducir ${video.slug}${video.duration_seconds > 0 ? `, duración ${fmtTime(video.duration_seconds)}` : ''}`}
           className="group absolute inset-0 z-30 flex items-center justify-center overflow-hidden bg-black text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
