@@ -1,3 +1,13 @@
+# EN CURSO · Fase 2 — recorrido lead → agenda → venta → cobro → comisión (9-oct-2026, Codex)
+
+- **Rama:** `codex/phase2-lead-to-commission`, desde `origin/main` posterior al PR #430.
+- **Reclamación:** auditoría e integración del recorrido canónico en WDC: contactos, agendas,
+  ventas, cobros y comisiones; rutas y pruebas estrictamente relacionadas. No toca MCP, VSL ni
+  migraciones de fundamentos reclamadas por otros agentes.
+- **Objetivo:** verificar un recorrido real extremo a extremo, detectar roturas entre etapas y
+  corregir únicamente las causas demostradas. Toda consulta/escritura debe quedar acotada por
+  `tenant_id`; no se crearán ventas, cobros ni comisiones ficticias en producción.
+
 # CERRADO Y DESPLEGADO · Histórico GHL reanudable sin timeout (PR #429, 9-oct-2026, Codex)
 
 - **Rama:** `codex/ghl-history-batches`, desde `origin/main` tras PR #428.

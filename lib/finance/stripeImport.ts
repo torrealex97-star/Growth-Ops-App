@@ -36,6 +36,7 @@ export type ImportChoice = {
 export type SaleInsert = {
   tenant_id: string
   contact_id: string
+  appointment_id?: string | null
   product_id: string
   payment_plan_id: string
   sale_date: string

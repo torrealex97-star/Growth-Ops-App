@@ -83,6 +83,7 @@ export default function NewSalePage() {
   const [appointmentSearch, setAppointmentSearch] = useState('')
   const [appointmentResults, setAppointmentResults] = useState<Appointment[]>([])
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null)
+  const [appointmentLinkLoading, setAppointmentLinkLoading] = useState(false)
 
   // Step 4
   const [saleDate, setSaleDate] = useState(() => aFechaDia(new Date()))
@@ -285,8 +286,14 @@ export default function NewSalePage() {
 
   // Autoselecciona la agenda más reciente del contacto al elegirlo
   useEffect(() => {
-    if (!selectedContact) return
+    setSelectedAppointmentId(null)
+    if (!selectedContact) {
+      setAppointmentResults([])
+      setAppointmentLinkLoading(false)
+      return
+    }
     let active = true
+    setAppointmentLinkLoading(true)
     ;(async () => {
       const supabase = createClient()
       const { data } = await supabase
@@ -295,10 +302,21 @@ export default function NewSalePage() {
         .eq('contact_id', selectedContact.id)
         .eq('tenant_id', tenantId)
         .order('appointment_datetime', { ascending: false })
-        .limit(1)
-      if (active && data && data[0]) {
-        setSelectedAppointmentId(data[0].id)
-        setAppointmentResults(data as Appointment[])
+        .limit(20)
+      if (active) {
+        const appointments = (data ?? []) as Appointment[]
+        const attended = appointments.filter((row) => row.status === 'show')
+        // La selección automática usa la misma regla conservadora que los imports de Stripe:
+        // un show inequívoco, o una única cita. Varias opciones quedan visibles para decidir.
+        const automatic =
+          attended.length === 1
+            ? attended[0]
+            : attended.length === 0 && appointments.length === 1
+              ? appointments[0]
+              : null
+        setSelectedAppointmentId(automatic?.id ?? null)
+        setAppointmentResults(appointments)
+        setAppointmentLinkLoading(false)
       }
     })()
     return () => {
@@ -538,6 +556,10 @@ export default function NewSalePage() {
   }
 
   const handleSubmit = async () => {
+    if (appointmentLinkLoading) {
+      toast.info('Estamos comprobando la agenda vinculada. Espera un instante.')
+      return
+    }
     if (!selectedContact || !selectedProduct || !selectedPlan) return
 
     setSubmitting(true)
@@ -1863,7 +1885,7 @@ export default function NewSalePage() {
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit} disabled={submitting || !canGoNext()}>
+          <Button onClick={handleSubmit} disabled={submitting || appointmentLinkLoading || !canGoNext()}>
             {submitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
