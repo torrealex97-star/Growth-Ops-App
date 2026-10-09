@@ -20,8 +20,13 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
-  const name = typeof body.client_name === 'string' && body.client_name.trim() ? body.client_name.trim().slice(0, 100) : 'Cliente MCP'
-  const uris = Array.isArray(body.redirect_uris) ? body.redirect_uris.filter((u): u is string => typeof u === 'string') : []
+  const name =
+    typeof body.client_name === 'string' && body.client_name.trim()
+      ? body.client_name.trim().slice(0, 100)
+      : 'Cliente MCP'
+  const uris = Array.isArray(body.redirect_uris)
+    ? body.redirect_uris.filter((u): u is string => typeof u === 'string')
+    : []
   if (uris.length === 0 || uris.length > 10) {
     return NextResponse.json({ error: 'redirect_uris debe contener entre 1 y 10 URLs https' }, { status: 400 })
   }

@@ -34,7 +34,7 @@ test('el análisis de consultas solo-lectura rechaza escritura camuflada (casos 
   const ok = [
     'select * from contacts limit 10',
     'WITH t as (select 1) select * from t',
-    'SELECT id FROM sales WHERE status = \'active\' -- comentario',
+    "SELECT id FROM sales WHERE status = 'active' -- comentario",
     'table tenants',
     "select 'drop table users' as texto_inofensivo", // escritura dentro de un literal
     'select 1; -- solo un comentario al final',
@@ -47,7 +47,7 @@ test('el análisis de consultas solo-lectura rechaza escritura camuflada (casos 
     'delete from contacts',
     'select 1; drop table users', // segunda sentencia
     "copy contacts to '/tmp/x'",
-    'select set_config(\'request.jwt.claims\', \'{}\', false)', // manipular la sesión RLS
+    "select set_config('request.jwt.claims', '{}', false)", // manipular la sesión RLS
     'select auth.uid() from users; select 1',
   ]
   for (const q of rechazadas) assert.equal(mod.esConsultaSoloLectura(q), false, q)

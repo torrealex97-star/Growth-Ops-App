@@ -31,7 +31,9 @@ function jsonRpcError(id: unknown, code: number, message: string) {
 
 type RpcBody = { jsonrpc?: string; id?: unknown; method?: string; params?: Record<string, unknown> }
 
-async function autenticar(request: NextRequest): Promise<{ userId: string; email: string; clientId: string } | NextResponse> {
+async function autenticar(
+  request: NextRequest
+): Promise<{ userId: string; email: string; clientId: string } | NextResponse> {
   const secret = MCP_JWT_SECRET()
   if (!secret || secret.length < 32) {
     return NextResponse.json(
@@ -103,7 +105,13 @@ async function handleToolsList(id: unknown) {
   )
 }
 
-async function handleToolCall(id: unknown, name: unknown, args: Record<string, unknown>, userId: string, email: string) {
+async function handleToolCall(
+  id: unknown,
+  name: unknown,
+  args: Record<string, unknown>,
+  userId: string,
+  email: string
+) {
   if (name === 'list_tenants') {
     const result = await ejecutarSqlMcp('select id, slug, name, status, created_at from tenants order by name', {
       userId,
@@ -183,7 +191,13 @@ export async function POST(request: NextRequest) {
     case 'tools/list':
       return handleToolsList(id)
     case 'tools/call':
-      return handleToolCall(id, body.params?.name, (body.params?.arguments as Record<string, unknown>) ?? {}, userId, email)
+      return handleToolCall(
+        id,
+        body.params?.name,
+        (body.params?.arguments as Record<string, unknown>) ?? {},
+        userId,
+        email
+      )
     case 'ping':
       return NextResponse.json(jsonRpc(id, {}), { headers: JSON_RPC_HEADERS })
     default:
@@ -201,7 +215,11 @@ export async function GET() {
     {
       server: 'growth-ops-mcp',
       transport: 'streamable-http',
-      endpoints: { mcp: 'POST /api/mcp', oauth: '/api/mcp/oauth/*', discovery: '/.well-known/oauth-protected-resource' },
+      endpoints: {
+        mcp: 'POST /api/mcp',
+        oauth: '/api/mcp/oauth/*',
+        discovery: '/.well-known/oauth-protected-resource',
+      },
       note: 'Autentícate vía OAuth 2.1 y envía JSON-RPC por POST con el Bearer token.',
     },
     { headers: JSON_RPC_HEADERS }

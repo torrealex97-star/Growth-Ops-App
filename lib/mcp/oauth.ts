@@ -109,7 +109,8 @@ export async function canjearCodigo(body: Record<string, unknown>): Promise<Toke
   const data = await consumeCode(hashToken(code))
   if (!data) return { ok: false, error: 'Código inválido, caducado o ya usado', status: 400 }
   if (data.client_id !== clientId) return { ok: false, error: 'Código emitido para otro cliente', status: 400 }
-  if (data.redirect_uri !== redirectUri) return { ok: false, error: 'redirect_uri distinta a la del código', status: 400 }
+  if (data.redirect_uri !== redirectUri)
+    return { ok: false, error: 'redirect_uri distinta a la del código', status: 400 }
   if (!verificarPkce(verifier, data.code_challenge)) {
     return { ok: false, error: 'code_verifier no coincide con el challenge', status: 400 }
   }
@@ -153,11 +154,20 @@ async function emitirTokens(input: { clientId: string; userId: string; scope: st
     expires_at: new Date(Date.now() + ACCESS_TTL_S * 1000).toISOString(),
     refresh_expires_at: new Date(Date.now() + REFRESH_TTL_S * 1000).toISOString(),
   })
-  return { ok: true, access_token: accessToken, refresh_token: refreshToken, expires_in: ACCESS_TTL_S, token_type: 'Bearer', scope: input.scope }
+  return {
+    ok: true,
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: ACCESS_TTL_S,
+    token_type: 'Bearer',
+    scope: input.scope,
+  }
 }
 
 /** Validación de Bearer: firma + jti presente en BD y no revocado. */
-export async function validarAccessToken(token: string): Promise<{ userId: string; email: string; clientId: string } | null> {
+export async function validarAccessToken(
+  token: string
+): Promise<{ userId: string; email: string; clientId: string } | null> {
   const secret = jwtSecret()
   if (!secret) return null
   const claims = verifyJwt(token, secret)

@@ -17,11 +17,23 @@ export async function POST(request: NextRequest) {
       body = Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === 'string')) as Record<string, unknown>
     }
   } catch {
-    return NextResponse.json({ error: 'invalid_request', error_description: 'Cuerpo inválido' }, { status: 400, headers: noStore })
+    return NextResponse.json(
+      { error: 'invalid_request', error_description: 'Cuerpo inválido' },
+      { status: 400, headers: noStore }
+    )
   }
 
   const grant = typeof body.grant_type === 'string' ? body.grant_type : ''
-  const result = grant === 'authorization_code' ? await canjearCodigo(body) : grant === 'refresh_token' ? await refrescarToken(body) : { ok: false as const, error: 'grant_type no soportado (solo authorization_code y refresh_token)', status: 400 }
+  const result =
+    grant === 'authorization_code'
+      ? await canjearCodigo(body)
+      : grant === 'refresh_token'
+        ? await refrescarToken(body)
+        : {
+            ok: false as const,
+            error: 'grant_type no soportado (solo authorization_code y refresh_token)',
+            status: 400,
+          }
 
   if (!result.ok) {
     const status = result.status
