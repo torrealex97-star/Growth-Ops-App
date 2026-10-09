@@ -390,8 +390,8 @@ export function VslDashboard() {
                 </TabsList>
 
                 <TabsContent value="engagement" className="space-y-5">
-                  <section className="grid gap-4 rounded-xl border border-border/70 bg-card/35 p-5 md:grid-cols-[minmax(220px,0.85fr)_minmax(0,2fr)]">
-                    <div className="flex flex-col justify-between border-b border-border pb-5 md:border-b-0 md:border-r md:pb-0 md:pr-5">
+                  <section className="grid gap-4 rounded-xl border border-border/70 bg-card/35 p-5 xl:grid-cols-[minmax(220px,0.85fr)_minmax(0,2fr)]">
+                    <div className="flex flex-col justify-between border-b border-border pb-5 xl:border-b-0 xl:border-r xl:pb-0 xl:pr-5">
                       <div>
                         <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
                           Promedio visto
@@ -406,7 +406,7 @@ export function VslDashboard() {
                           : 'Aún no hay reproducciones válidas para medir engagement.'}
                       </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 xl:grid-cols-4">
                       <Metric label="Impresiones" value={metrics.totals.impressions} icon={Eye} />
                       <Metric label="Reproducciones" value={metrics.totals.plays} icon={Play} />
                       <Metric
