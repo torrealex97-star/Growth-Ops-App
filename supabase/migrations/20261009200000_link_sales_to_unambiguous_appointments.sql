@@ -10,7 +10,7 @@
 with unique_attended as (
   select
     s.id as sale_id,
-    min(a.id) as appointment_id
+    (array_agg(a.id order by a.appointment_datetime desc))[1] as appointment_id
   from public.sales s
   join public.appointments a
     on a.tenant_id = s.tenant_id
