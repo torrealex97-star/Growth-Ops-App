@@ -87,8 +87,8 @@ export async function ejecutarSqlMcp(
   try {
     const sql = getClient()
     const claims = JSON.stringify({ sub: opts.userId, email: opts.email, role: 'authenticated' })
-    type Tx = Parameters<Parameters<typeof sql.begin>[0]>[0]
-    const rows = (await sql.begin(async (tx: Tx) => {
+    type TransactionSqlTipado = postgres.TransactionSql<FilaMcp>
+    const rows = (await sql.begin(async (tx: TransactionSqlTipado) => {
       await tx.unsafe(`select set_config('request.jwt.claims', $1, true)`, [claims])
       await tx.unsafe(`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
       // CRÍTICO: POSTGRES_URL conecta como propietario de las tablas y el propietario SE SALTA
