@@ -1,23 +1,25 @@
-# EN CURSO · VSL Intelligence UI: reproductor primero (9-oct-2026, Codex)
+# CERRADO · VSL Intelligence UI: reproductor primero (PR #416, 9-oct-2026, Codex)
 
-- **Rama única:** `codex/vsl-interface-polish`.
+- **Rama fusionada:** `codex/vsl-interface-polish`; squash `43bfcc43` en `main`.
 - **Alcance reclamado:** únicamente la experiencia de `marketing/adquisicion/vsl`: biblioteca,
   vista previa real, jerarquía analítica, pestañas Engagement/Audiencia/Embed y estados de
   carga/error/vacío. No modifica fórmulas, tracking, reproductor público ni datos.
 - **Dirección:** `FUNCTION > CLARITY > POLISH`; interfaz técnica y sobria, reproductor 16:9 como
   foco, una pregunta por pestaña y detalle avanzado plegado. El rosa de marca señala selección y
   acción; verde/ámbar/rojo quedan reservados para estados.
-- **Implementado en rama:** biblioteca compacta con miniaturas Bunny; reproductor real en modo
+- **Implementado:** biblioteca compacta con miniaturas Bunny; reproductor real en modo
   preview que no contamina métricas; Engagement con un KPI principal y curva dominante; Audiencia
   separada de dispositivos; Embed y configuración fuera del análisis. Se añadieron skeletons,
   reintento sin recargar la página y estados vacíos explicativos.
-- **TESTED hasta ahora:** typecheck PASS tras corregir el selector tipado; regresiones VSL 30/30.
-  El servidor local compila, pero el render autenticado no está disponible sin trasladar una sesión;
-  no se copiarán tokens entre dominios. Validar visualmente en Preview/producción después del PR.
+- **TESTED:** Quality, gitleaks, Build, Smoke E2E, Release gate y Vercel Preview PASS. Producción
+  autenticada muestra biblioteca, VSL Bunny real, pestañas y estados vacíos correctos. La revisión
+  visual detectó que las cuatro métricas se comprimían con sidebar en escritorio intermedio; el
+  ajuste responsive queda aislado en `codex/vsl-metric-responsive` para mostrar dos columnas hasta
+  `xl` y evitar etiquetas superpuestas. Regresiones VSL y privacidad 18/18 PASS.
 - **Estado de la base:** PR-1b #415 fusionada (`35fc3041`), dry-run Supabase PASS, pero la migración
   `20261009010000_vsl_tracking_foundation` sigue sin aplicarse hasta recibir confirmación explícita.
-- **Siguiente exacto:** quality gate, Preview, revisión real escritorio/móvil y merge solo si la
-  jerarquía se mantiene legible. Después, aplicar la migración con autorización y conectar dual-write.
+- **Siguiente exacto:** fusionar el ajuste responsive tras CI y verificar escritorio/móvil. Después,
+  aplicar la migración con autorización y conectar dual-write.
 
 # CERRADO EN RAMA · perfiles financieros de equipo comisionable (9-oct-2026, Codex)
 
