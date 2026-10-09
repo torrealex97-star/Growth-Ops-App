@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { resolveSaleAppointment } from '@/lib/sales/appointment-link'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -269,11 +270,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (dryRun) continue
 
     const planId = await getPlanId(price)
+    const appointmentId = await resolveSaleAppointment(sb, auth.tenantId, contactId, saleDateStr)
     const insertedSale = await sb
       .from('sales')
       .insert({
         tenant_id: auth.tenantId,
         contact_id: contactId,
+        appointment_id: appointmentId,
         product_id: productId,
         payment_plan_id: planId,
         sale_date: saleDateStr,

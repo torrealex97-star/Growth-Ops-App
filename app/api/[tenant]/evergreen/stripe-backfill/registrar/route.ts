@@ -6,6 +6,7 @@ import { stripeGet } from '@/lib/stripe/client'
 import { classifyForBackfill, type BackfillRow } from '@/lib/finance/stripeBackfill'
 import { buildCollection, buildSaleFromPayments, type ImportChoice } from '@/lib/finance/stripeImport'
 import { reconcileSaleCommissions } from '@/lib/commissions/generate'
+import { resolveSaleAppointment } from '@/lib/sales/appointment-link'
 import type { StripeIntent } from '@/lib/finance/stripeReconciliation'
 
 export const runtime = 'nodejs'
@@ -212,6 +213,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       for (const f of filas) resultados.push({ paymentId: f.paymentId, ok: false, motivo: built.error })
       continue
     }
+
+    // Stripe identifica el contacto, pero no la cita. Conservamos el recorrido comercial solo
+    // cuando la relación es inequívoca; si hay varias citas plausibles no elegimos una al azar.
+    const appointmentId = await resolveSaleAppointment(sb, session.tenantId, contactId, built.sale.sale_date as string)
+    if (appointmentId) built.sale.appointment_id = appointmentId
 
     const inserted = await sb.from('sales').insert(built.sale).select('id')
     if (inserted.error || !inserted.data || inserted.data.length === 0) {
