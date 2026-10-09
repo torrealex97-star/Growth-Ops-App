@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, ExternalLink, X, Download, Wrench, Loader2 } from 'lucide-react'
+import { ArrowLeft, Check, Copy, ExternalLink, Link2, X, Download, Wrench, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
@@ -26,8 +26,16 @@ import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPres
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 import { tenantActiveUsers } from '@/lib/users'
 import type { CommissionDashboardRow } from '@/lib/commissions/dashboard'
+import { enlaceDeRol } from '@/lib/tracking/enlaces'
 
 type SimpleMember = { id: string; full_name: string }
+type CommissionableMember = SimpleMember & {
+  tracking_code: string | null
+  affiliate_code: string | null
+  roles?: { key: string } | { key: string }[] | null
+}
+type LinkTemplate = { id: string; name: string; base_url: string; applies_to: string[] | null }
+type ActiveCampaign = { id: string; name: string; base_url: string }
 
 type FutureRow = {
   installmentId: string
@@ -90,6 +98,11 @@ export default function CommissionsPage() {
   const [commissions, setCommissions] = useState<CommissionDashboardRow[]>([])
   const [future, setFuture] = useState<FutureRow[]>([])
   const [members, setMembers] = useState<SimpleMember[]>([])
+  const [commissionableMembers, setCommissionableMembers] = useState<CommissionableMember[]>([])
+  const [linkTemplates, setLinkTemplates] = useState<LinkTemplate[]>([])
+  const [activeCampaigns, setActiveCampaigns] = useState<ActiveCampaign[]>([])
+  const [selectedLinkId, setSelectedLinkId] = useState<string>('')
+  const [copiedLink, setCopiedLink] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState('')
   const [currentUserId, setCurrentUserId] = useState('')
@@ -179,7 +192,29 @@ export default function CommissionsPage() {
     }
 
     if (canSeeAll) {
-      setMembers((await tenantActiveUsers(supabase, tenantId)) as SimpleMember[])
+      const [activeMembers, directoryResponse, templatesResult, campaignsResult] = await Promise.all([
+        tenantActiveUsers(supabase, tenantId),
+        fetch(`/api/${tenant}/evergreen/colaboradores`),
+        supabase
+          .from('link_templates')
+          .select('id, name, base_url, applies_to')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .order('name'),
+        supabase
+          .from('affiliate_campaigns')
+          .select('id, name, base_url')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .order('name'),
+      ])
+      setMembers(activeMembers as SimpleMember[])
+      if (directoryResponse.ok) {
+        const directory = (await directoryResponse.json()) as { personasComisionables?: CommissionableMember[] }
+        setCommissionableMembers(directory.personasComisionables ?? [])
+      }
+      setLinkTemplates((templatesResult.data ?? []) as LinkTemplate[])
+      setActiveCampaigns((campaignsResult.data ?? []) as ActiveCampaign[])
     }
 
     setLoading(false)
@@ -449,6 +484,46 @@ export default function CommissionsPage() {
   const handleLiquidate = (ids: string[]) => handleBatchStatus('liquidate', ids)
 
   const selectedMember = filterMember === 'all' ? null : (members.find((member) => member.id === filterMember) ?? null)
+  const selectedCommissionableMember =
+    filterMember === 'all' ? null : (commissionableMembers.find((member) => member.id === filterMember) ?? null)
+  const selectedMemberRole = selectedCommissionableMember
+    ? Array.isArray(selectedCommissionableMember.roles)
+      ? selectedCommissionableMember.roles[0]?.key
+      : selectedCommissionableMember.roles?.key
+    : null
+  const selectedMemberCode =
+    selectedCommissionableMember?.tracking_code || selectedCommissionableMember?.affiliate_code || null
+  const selectedMemberLinks =
+    selectedMemberRole && selectedMemberCode
+      ? [
+          ...activeCampaigns.map((campaign) => ({
+            id: `campaign:${campaign.id}`,
+            name: campaign.name,
+            url: enlaceDeRol(campaign.base_url, selectedMemberRole, selectedMemberCode),
+          })),
+          ...linkTemplates
+            .filter((template) => template.applies_to?.includes(selectedMemberRole))
+            .map((template) => ({
+              id: `template:${template.id}`,
+              name: template.name,
+              url: enlaceDeRol(template.base_url, selectedMemberRole, selectedMemberCode),
+            })),
+        ].filter((link, index, links) => links.findIndex((candidate) => candidate.url === link.url) === index)
+      : []
+  const activeMemberLink =
+    selectedMemberLinks.find((link) => link.id === selectedLinkId) ?? selectedMemberLinks[0] ?? null
+
+  const copyMemberLink = async () => {
+    if (!activeMemberLink) return
+    try {
+      await navigator.clipboard.writeText(activeMemberLink.url)
+      setCopiedLink(true)
+      toast.success('Enlace del setter copiado', { description: activeMemberLink.name })
+      setTimeout(() => setCopiedLink(false), 2000)
+    } catch {
+      toast.error('No se pudo copiar el enlace')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -490,6 +565,75 @@ export default function CommissionsPage() {
           &quot;Reparar comisiones&quot; reconstruye las comisiones de todas las ventas a partir de sus cobros reales.
           Úsalo si un cobro no generó su comisión. No toca las ya liquidadas y se puede repetir sin duplicar nada.
         </p>
+      )}
+
+      {selectedMember && canApprove && selectedCommissionableMember && (
+        <section className="rounded-2xl border border-brand-500/30 bg-card p-5" aria-labelledby="member-link-title">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500/15 text-brand-300">
+                  <Link2 className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 id="member-link-title" className="text-sm font-semibold text-foreground">
+                    Enlace para atribuir ventas a {selectedMember.full_name}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Compártelo tal cual. El parámetro personal identifica al setter en contactos, agendas y ventas.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {activeMemberLink ? (
+              <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row lg:max-w-2xl">
+                {selectedMemberLinks.length > 1 && (
+                  <Select value={activeMemberLink.id} onValueChange={setSelectedLinkId}>
+                    <SelectTrigger className="h-10 bg-background sm:w-52" aria-label="Destino del enlace">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedMemberLinks.map((link) => (
+                        <SelectItem key={link.id} value={link.id}>
+                          {link.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <div className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+                  <span className="block truncate" title={activeMemberLink.url}>
+                    {activeMemberLink.url}
+                  </span>
+                </div>
+                <Button type="button" onClick={copyMemberLink} className="shrink-0">
+                  {copiedLink ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                  {copiedLink ? 'Copiado' : 'Copiar enlace'}
+                </Button>
+                <Button variant="outline" size="icon" asChild title="Abrir enlace">
+                  <a href={activeMemberLink.url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                    <span className="sr-only">Abrir enlace</span>
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+                <p className="text-sm text-amber-300">
+                  {selectedMemberCode
+                    ? 'Falta definir el destino del enlace para este rol.'
+                    : 'Este miembro todavía no tiene código de atribución.'}
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={selectedMemberCode ? `/${tenant}/recursos/enlaces` : `/${tenant}/settings/users`}>
+                    {selectedMemberCode ? 'Configurar enlace' : 'Generar código'}
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {/* Filtros */}

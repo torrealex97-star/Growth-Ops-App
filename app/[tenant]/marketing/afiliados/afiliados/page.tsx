@@ -482,13 +482,20 @@ export default function AfiliadosPage() {
           .filter((campana) => campanasAsignadas.has(campana.id))
           .map((campana) => ({ id: campana.id, name: campana.name, url: enlaceDeRol(campana.base_url, role, code) }))
       }
-      return plantillasEnlaces
-        .filter((plantilla) => plantilla.applies_to?.includes(role))
-        .map((plantilla) => ({
-          id: plantilla.id,
-          name: plantilla.name,
-          url: enlaceDeRol(plantilla.base_url, role, code),
-        }))
+      return [
+        ...campanas.map((campana) => ({
+          id: `campaign:${campana.id}`,
+          name: campana.name,
+          url: enlaceDeRol(campana.base_url, role, code),
+        })),
+        ...plantillasEnlaces
+          .filter((plantilla) => plantilla.applies_to?.includes(role))
+          .map((plantilla) => ({
+            id: `template:${plantilla.id}`,
+            name: plantilla.name,
+            url: enlaceDeRol(plantilla.base_url, role, code),
+          })),
+      ].filter((enlace, index, enlaces) => enlaces.findIndex((candidate) => candidate.url === enlace.url) === index)
     },
     [asignaciones, campanas, plantillasEnlaces]
   )
