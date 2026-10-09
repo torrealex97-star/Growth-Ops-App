@@ -113,7 +113,10 @@ test('el deadline gobierna TODAS las llamadas externas, no solo la primera pagin
   const calendly = sync.slice(sync.indexOf('export async function syncCalendly'))
   const ghl = sync.slice(sync.indexOf('export async function syncGhl'))
   assert.match(calendly, /for \(const event of body\.collection \?\? \[\]\) \{[\s\S]*?deadlineMs && Date\.now\(\)/)
-  assert.match(ghl, /for \(const event of body\.events \?\? \[\]\) \{[\s\S]*?deadlineMs && Date\.now\(\)/)
+  assert.match(
+    ghl,
+    /for \(let eventIndex = firstEvent; eventIndex < events\.length; eventIndex\+\+\) \{[\s\S]*?deadlineMs && Date\.now\(\)/
+  )
   // Y en la resolución de dueños de calendario de GHL: varios calendarios × GET /users sin reloj
   // se come el budget sin escribir ni una cita.
   assert.match(ghl, /duenaDeCalendario[\s\S]*?deadlineMs && Date\.now\(\)/)

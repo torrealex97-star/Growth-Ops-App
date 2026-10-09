@@ -879,7 +879,8 @@ export default function IntegracionesPage() {
       let updated = 0
       let cursor: string | null = null
       const resumeKey = `growth-ops:history:${tenant}:${g.id}`
-      if (g.id === 'calendly') {
+      const resumable = g.id === 'calendly' || g.id === 'ghl'
+      if (resumable) {
         try {
           const saved = JSON.parse(localStorage.getItem(resumeKey) || 'null') as {
             cursor?: string
@@ -894,9 +895,9 @@ export default function IntegracionesPage() {
         }
       }
 
-      // Calendly devuelve un lote por petición para respetar los 60 s de Vercel Hobby. El resto
-      // mantiene una sola petición. El cursor se guarda después de CADA lote: recargar o perder
-      // la red no obliga a empezar desde cero.
+      // Calendly y GHL devuelven un lote por petición para respetar los 60 s de Vercel Hobby.
+      // El cursor se guarda después de CADA lote: recargar o perder la red no obliga a empezar
+      // desde cero.
       for (let batch = 0; batch < 100; batch++) {
         const r = await fetch(direct[g.id] || `/api/${tenant}/evergreen/settings/integraciones/history-sync`, {
           method: 'POST',
@@ -908,7 +909,7 @@ export default function IntegracionesPage() {
         imported += j.imported ?? j.inserted ?? j.synced ?? j.total ?? 0
         updated += j.updated ?? j.matched ?? 0
         const next = typeof j.nextPageToken === 'string' && j.nextPageToken ? j.nextPageToken : null
-        if (g.id !== 'calendly' || !next) {
+        if (!resumable || !next) {
           localStorage.removeItem(resumeKey)
           break
         }
