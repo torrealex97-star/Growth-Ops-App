@@ -933,7 +933,7 @@ function VideoForm({
           </div>
 
           <div>
-            <Label className="text-foreground">Miniatura (carga instantánea)</Label>
+            <Label className="text-foreground">Portada y play</Label>
             <div className="mt-1 flex items-center gap-2">
               <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-foreground hover:border-white/30">
                 {uploading === 'poster' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -952,6 +952,41 @@ function VideoForm({
               placeholder="…o URL de imagen"
               className="mt-2 bg-black/30 text-xs"
             />
+            <div className="mt-3 space-y-2 rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Miniatura dinámica</p>
+                  <p className="text-xs text-muted-foreground">Bunny muestra un fragmento corto sin cargar el vídeo.</p>
+                </div>
+                <select
+                  value={config.thumbnailMode}
+                  onChange={(e) => setCfg('thumbnailMode', e.target.value as VslConfig['thumbnailMode'])}
+                  className="rounded-md border border-white/15 bg-black/30 px-2.5 py-1.5 text-sm text-foreground"
+                >
+                  <option value="animated">Dinámica</option>
+                  <option value="static">Imagen fija</option>
+                </select>
+              </div>
+              <Input
+                value={config.thumbnailText}
+                onChange={(e) => setCfg('thumbnailText', e.target.value.slice(0, 90))}
+                placeholder="Texto opcional sobre la portada"
+                maxLength={90}
+                className="bg-black/30 text-sm"
+              />
+              <label className="flex items-center gap-2 text-sm text-foreground">
+                <Checkbox
+                  checked={config.showDurationOnPlay}
+                  onCheckedChange={(v) => setCfg('showDurationOnPlay', !!v)}
+                />
+                Mostrar duración junto al botón de play
+              </label>
+              {config.thumbnailMode === 'animated' && !derivadosDeSource(sourceUrl).preview && sourceUrl && (
+                <p className="text-xs text-amber-300">
+                  La animación automática necesita una fuente Bunny. Mientras tanto se usará la imagen fija.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

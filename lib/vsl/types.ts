@@ -16,6 +16,11 @@ export interface VslConfig {
   fakeProgress: boolean // barra "acelerada": avanza rápido y da sensación de que queda poco (retención)
   loop: boolean // al terminar, vuelve a empezar automáticamente
 
+  // --- Portada que invita a reproducir (paridad funcional Wistia) ---
+  thumbnailMode: 'static' | 'animated' // poster inmediato o preview WebP de Bunny cargada bajo demanda
+  thumbnailText: string // contexto breve sobre la portada; vacío = sin texto
+  showDurationOnPlay: boolean // duración junto al play antes de iniciar
+
   // --- Prueba social (contador "viendo ahora" / "ya lo vieron") ---
   socialProof: SocialProofMode // off | fake (inventado) | real (sesiones reales)
   spViewersMin: number // fake: mínimo de "viendo ahora"
@@ -45,13 +50,17 @@ export const DEFAULT_CONFIG: VslConfig = {
   showBar: true,
   barColor: BRAND_BLUE_BAR,
   primaryColor: BRAND_BLUE,
-  autoplay: true,
-  muted: true,
+  // Poster-first por defecto: mejora LCP/consumo y hace que un play sea una intención real.
+  autoplay: false,
+  muted: false,
   tryAudioAutoplay: true,
   restartOnUnmute: true,
   lockSeek: true,
   fakeProgress: true,
   loop: true,
+  thumbnailMode: 'animated',
+  thumbnailText: '',
+  showDurationOnPlay: true,
   socialProof: 'off',
   spViewersMin: 8,
   spViewersMax: 24,

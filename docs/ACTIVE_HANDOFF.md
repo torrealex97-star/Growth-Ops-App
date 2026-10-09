@@ -1,3 +1,21 @@
+# CERRADO EN RAMA · VSL motion poster y play optimizado (9-oct-2026, Codex)
+
+- **Rama única:** `codex/vsl-dynamic-thumbnail`. Reutiliza Bunny; no cambia proveedor, esquema,
+  tracking ni fórmulas.
+- **Implementado:** las VSL nuevas usan poster-first con miniatura dinámica Bunny (`preview.webp`),
+  texto opcional, duración y play central. La imagen fija pinta primero; el motion poster se solicita
+  solo al entrar en viewport, tras un pequeño diferido, y se omite con ahorro de datos o
+  `prefers-reduced-motion`. Fuentes no Bunny degradan a imagen fija sin error.
+- **Rendimiento:** sin autoplay el elemento usa `preload=none`; HLS carga manifiesto pero no inicia
+  fragmentos (`autoStartLoad=false`) hasta el clic. Al pulsar play comienza ABR desde el nivel más
+  ligero. Los vídeos existentes conservan su configuración; el nuevo default poster-first solo
+  afecta altas nuevas.
+- **UX:** el editor agrupa Miniatura dinámica, texto y duración bajo `Portada y play`; la vista
+  previa sigue usando el reproductor real sin contaminar métricas. Play tiene foco, hit area y estado
+  activo; se conserva fallback estático para compatibilidad.
+- **TESTED:** typecheck PASS; VSL focal 60/60 PASS; suite completa 1.529 PASS, 3 omitidas y 0 fallos.
+  Pendiente build/CI/Preview y smoke visual antes de fusionar.
+
 # CERRADO Y DESPLEGADO · Atribución verificable en agendas (PR #420, 9-oct-2026, Codex)
 
 - **Rama única:** `codex/attribution-booking-tracking`, aislada porque el checkout principal está
