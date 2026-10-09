@@ -40,15 +40,78 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Vídeo no encontrado' }, { status: 404 })
     }
     const { video } = resolution
+    const provider = video.source_url?.includes('.b-cdn.net/') ? 'bunny' : 'external'
 
-    const [row] = await sql`
-      INSERT INTO vsl_sessions (video_id, anon_id, referrer, device, country, user_agent)
-      VALUES (${video.id}, ${anonId}, ${referrer || null}, ${device}, ${country}, ${ua})
-      ON CONFLICT (video_id, anon_id)
-      DO UPDATE SET updated_at = now(), referrer = COALESCE(vsl_sessions.referrer, EXCLUDED.referrer)
-      RETURNING id
-    `
-    return NextResponse.json({ sessionId: row.id })
+    const result = await sql.begin(async (tx) => {
+      const [row] = await tx`
+        INSERT INTO vsl_sessions (video_id, anon_id, referrer, device, country, user_agent)
+        VALUES (${video.id}, ${anonId}, ${referrer || null}, ${device}, ${country}, ${ua})
+        ON CONFLICT (video_id, anon_id)
+        DO UPDATE SET updated_at = now(), referrer = COALESCE(vsl_sessions.referrer, EXCLUDED.referrer)
+        RETURNING id, tenant_id
+      `
+
+      // Serializa el alta/cambio de versión por vídeo. Un source_url nuevo cierra la versión
+      // anterior; conocer más tarde la duración solo completa la versión activa.
+      await tx`SELECT id FROM vsl_videos WHERE id = ${video.id} AND tenant_id = ${row.tenant_id} FOR UPDATE`
+      const [activeVersion] = await tx`
+        SELECT id, source_url
+        FROM vsl_video_versions
+        WHERE tenant_id = ${row.tenant_id} AND video_id = ${video.id} AND replaced_at IS NULL
+        ORDER BY version_number DESC LIMIT 1
+      `
+      let version: { id: string } | null = activeVersion ? { id: String(activeVersion.id) } : null
+      if (activeVersion && activeVersion.source_url !== video.source_url) {
+        await tx`
+          UPDATE vsl_video_versions SET replaced_at = now()
+          WHERE tenant_id = ${row.tenant_id} AND id = ${activeVersion.id}
+        `
+        version = null
+      }
+      if (!version) {
+        const insertedVersions = await tx`
+          INSERT INTO vsl_video_versions (
+            tenant_id, video_id, version_number, provider, source_url, duration_seconds
+          )
+          SELECT ${row.tenant_id}, ${video.id}, COALESCE(max(version_number), 0) + 1,
+                 ${provider}, ${video.source_url}, ${Number(video.duration_seconds) || 0}
+          FROM vsl_video_versions
+          WHERE tenant_id = ${row.tenant_id} AND video_id = ${video.id}
+          RETURNING id
+        `
+        const insertedVersion = insertedVersions[0]
+        if (!insertedVersion) throw new Error('No se pudo crear la versión VSL')
+        version = { id: String(insertedVersion.id) }
+      } else {
+        await tx`
+          UPDATE vsl_video_versions
+          SET duration_seconds = GREATEST(duration_seconds, ${Number(video.duration_seconds) || 0})
+          WHERE tenant_id = ${row.tenant_id} AND id = ${version.id}
+        `
+      }
+      if (!version) throw new Error('No se pudo resolver la versión VSL')
+
+      // playback_id sí es nuevo en cada carga para no mezclar replays del mismo visitante.
+      const [playback] = await tx`
+        INSERT INTO vsl_playback_sessions (
+          tenant_id, video_id, video_version_id, legacy_session_id, viewer_id, started_at, last_event_at
+        ) VALUES (
+          ${row.tenant_id}, ${video.id}, ${version.id}, ${row.id}, ${anonId}, now(), now()
+        )
+        RETURNING playback_id
+      `
+      await tx`
+        INSERT INTO vsl_tracking_events (
+          tenant_id, playback_id, event_id, event_type, occurred_at, visibility_state
+        ) VALUES (
+          ${row.tenant_id}, ${playback.playback_id}, ${`impression:${playback.playback_id}`},
+          'player_impression', now(), 'visible'
+        )
+        ON CONFLICT (tenant_id, event_id) DO NOTHING
+      `
+      return { sessionId: row.id, playbackId: playback.playback_id }
+    })
+    return NextResponse.json(result)
   } catch (e) {
     console.error('[vsl/session]', e)
     return NextResponse.json({ error: 'Error al crear sesión' }, { status: 500 })

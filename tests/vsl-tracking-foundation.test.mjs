@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const migration = readFileSync(join(root, 'supabase/migrations/20261009010000_vsl_tracking_foundation.sql'), 'utf8')
+const accessMigration = readFileSync(join(root, 'supabase/migrations/20261009110000_vsl_tracking_access.sql'), 'utf8')
 
 test('tracking VSL es aditivo y conserva vsl_sessions como compatibilidad', () => {
   assert.doesNotMatch(migration, /DROP TABLE[^;]*vsl_sessions/i)
@@ -63,4 +64,11 @@ test('todas las tablas nuevas tienen RLS y solo lectura autenticada por tenant',
 test('la capa de precisión no guarda IP completa ni geolocalización precisa', () => {
   assert.doesNotMatch(migration, /\bip_address\b/i)
   assert.doesNotMatch(migration, /\b(latitude|longitude|carrier|isp)\b/i)
+})
+
+test('la telemetría no admite escrituras directas de anon ni authenticated', () => {
+  assert.match(accessMigration, /REVOKE ALL ON TABLE public\.%I FROM anon/)
+  assert.match(accessMigration, /REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER/)
+  assert.match(accessMigration, /GRANT SELECT ON TABLE public\.%I TO authenticated/)
+  assert.match(accessMigration, /FOR SELECT TO authenticated/)
 })

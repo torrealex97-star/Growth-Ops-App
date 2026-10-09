@@ -68,6 +68,20 @@ interface Metrics {
   }[]
   /** Cuántas personas identificadas NO se muestran por permisos. 0 = las ves todas. */
   leadsOcultos?: number
+  heatmaps?: {
+    playbackId: string
+    viewer: string
+    startedAt: string
+    duration: number
+    watchedPercent: number
+    intervals: { start: number; end: number }[]
+  }[]
+  trackingHealth?: {
+    mode: 'precise' | 'legacy'
+    precisionPlaybacks: number
+    totalTimePlayed: number
+    note: string
+  }
 }
 
 // KPIs agregados de TODOS los vídeos de la subcuenta (criterios idénticos a las métricas por vídeo).
@@ -428,6 +442,16 @@ export function VslDashboard() {
                       <p className="text-sm text-muted-foreground">¿En qué momento deja de mirar la audiencia?</p>
                     </CardHeader>
                     <CardContent>
+                      <div className="mb-4 flex items-start gap-2 rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
+                        <span
+                          className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
+                            metrics.trackingHealth?.mode === 'precise' ? 'bg-emerald-400' : 'bg-amber-400'
+                          }`}
+                        />
+                        <span>
+                          {metrics.trackingHealth?.note ?? 'Histórico aproximado anterior al tracking por intervalos.'}
+                        </span>
+                      </div>
                       {metrics.totals.plays > 0 && metrics.retention.length > 1 ? (
                         <ResponsiveContainer width="100%" height={300}>
                           <AreaChart data={metrics.retention} margin={{ top: 12, right: 8, left: -18, bottom: 0 }}>
@@ -533,6 +557,53 @@ export function VslDashboard() {
                 </TabsContent>
 
                 <TabsContent value="audience" className="space-y-5">
+                  {(metrics.heatmaps?.length ?? 0) > 0 && (
+                    <Card className="border-border/70 bg-card/35 shadow-none">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base text-foreground">Heatmaps recientes</CardTitle>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Qué fragmentos reprodujo cada espectador; los huecos son segundos no vistos.
+                        </p>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {(metrics.heatmaps ?? []).map((heatmap) => (
+                          <div key={heatmap.playbackId} className="space-y-2">
+                            <div className="flex items-center justify-between gap-3 text-sm">
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-foreground">{heatmap.viewer}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(heatmap.startedAt).toLocaleString('es-ES')}
+                                </p>
+                              </div>
+                              <span className="shrink-0 font-medium tabular-nums text-foreground">
+                                {heatmap.watchedPercent}% visto
+                              </span>
+                            </div>
+                            <div
+                              className="relative h-3 overflow-hidden rounded-full bg-muted"
+                              aria-label={`${heatmap.watchedPercent}% visto`}
+                            >
+                              {heatmap.intervals.map((interval, index) => {
+                                const duration = Math.max(1, heatmap.duration)
+                                const left = Math.min(100, (interval.start / duration) * 100)
+                                const width = Math.max(
+                                  0.35,
+                                  Math.min(100 - left, ((interval.end - interval.start) / duration) * 100)
+                                )
+                                return (
+                                  <span
+                                    key={`${interval.start}-${interval.end}-${index}`}
+                                    className="absolute inset-y-0 bg-brand-500"
+                                    style={{ left: `${left}%`, width: `${width}%` }}
+                                  />
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
                   <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(240px,0.7fr)]">
                     <Card className="border-border/70 bg-card/35 shadow-none">
                       <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">

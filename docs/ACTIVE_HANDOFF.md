@@ -1,3 +1,27 @@
+# EN CURSO · VSL Precision Tracking + heatmaps (9-oct-2026, Codex)
+
+- **Rama única:** `codex/vsl-precision-tracking`. Alcance: dual-write del reproductor VSL,
+  intervalos realmente reproducidos, eventos idempotentes, identidad CRM exacta, métricas precisas,
+  heatmaps recientes y acceso mínimo a las seis tablas nuevas. No cambia Bunny ni crea un segundo
+  reproductor.
+- **Producción:** la migración fusionada `20261009010000_vsl_tracking_foundation` fue aplicada al
+  proyecto `growth-ops-app`; seis tablas presentes, RLS activo, 16 FKs y 0 filas iniciales. El MCP
+  registró primero una versión generada y se reconcilió de forma atómica con la versión exacta del
+  archivo (`20261009010000`) para evitar una reaplicación futura.
+- **Implementado en rama:** cada carga conserva `vsl_sessions` como compatibilidad y crea un playback
+  separado; eventos y lotes son idempotentes; pausas, reanudaciones, seeks y visibilidad se distinguen;
+  los saltos no rellenan segundos no vistos. La pantalla prefiere intervalos precisos cuando existen y
+  declara claramente el fallback histórico legacy. Audiencia incorpora heatmaps recientes sin IP ni
+  geolocalización precisa. La identidad solo se enlaza por email exacto dentro del mismo tenant.
+- **Hardening pendiente de fusionar/aplicar:** `20261009110000_vsl_tracking_access` revoca todo a
+  `anon`, deja a `authenticated` únicamente SELECT con RLS por tenant y conserva escrituras solo en
+  servidor. No aplicarla antes de fusionar esta rama.
+- **TESTED en clon aislado:** typecheck PASS; focales VSL 43/43 PASS; suite completa PASS;
+  métricas 788/788 PASS; build de producción PASS (solo avisos heredados). Pendiente CI/Preview,
+  migración de acceso en producción y smoke real de eventos. Antes de escala alta, PR-2 debe añadir
+  rollups diarios: la curva precisa aún agrega intervalos en lectura y no debe convertirse en la
+  estrategia definitiva para millones de eventos.
+
 # CERRADO · VSL Intelligence UI: reproductor primero (PR #416, 9-oct-2026, Codex)
 
 - **Rama fusionada:** `codex/vsl-interface-polish`; squash `43bfcc43` en `main`.
