@@ -43,3 +43,18 @@ test('el formulario configura portada dinámica sin otra tabla ni migración', (
   assert.match(dashboard, /setCfg\('thumbnailText'/)
   assert.match(dashboard, /setCfg\('showDurationOnPlay'/)
 })
+
+test('la biblioteca se recupera de red cortada y no deja un loader infinito', () => {
+  assert.match(dashboard, /try \{[\s\S]*fetch\(`\/api\/\$\{tenant\}\/evergreen\/vsl\/videos`\)/)
+  assert.match(dashboard, /catch \{[\s\S]*setLoadError\(true\)/)
+  assert.match(dashboard, /finally \{[\s\S]*setLoading\(false\)/)
+  assert.match(dashboard, /h-28 rounded-xl lg:h-\[430px\]/)
+})
+
+test('la vista previa reacciona al autoplay y cada vídeo aísla su estado', () => {
+  assert.match(player, /if \(!preview \|\| cfg\.autoplay\) return/)
+  assert.match(player, /setFirstFrame\(false\)/)
+  assert.match(player, /cfg\.autoplay, cfg\.tryAudioAutoplay, ready/)
+  assert.match(dashboard, /key=\{selectedVideo\.id\}/)
+  assert.match(dashboard, /Autoplay reproduce el vídeo directamente y oculta la portada/)
+})
