@@ -23,11 +23,13 @@ export type McpClient = {
 
 export type McpTokenRow = {
   id: string
+  client_id: string
   user_id: string
   scope: string
   token_hash: string
   expires_at: string
   revoked_at: string | null
+  refresh_expires_at: string | null
 }
 
 const sb = () => mcpAdminClient()
@@ -117,7 +119,7 @@ export async function revokeByRefreshHash(refreshHash: string): Promise<McpToken
   const sbi = sb()
   const { data: found, error: readError } = await sbi
     .from('mcp_oauth_tokens')
-    .select('id, user_id, scope, token_hash, expires_at, revoked_at, refresh_expires_at')
+    .select('id, client_id, user_id, scope, token_hash, expires_at, revoked_at, refresh_expires_at')
     .eq('refresh_hash', refreshHash)
     .maybeSingle()
   if (readError) throw new Error(`No se pudo leer el refresh token: ${readError.message}`)

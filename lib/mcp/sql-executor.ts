@@ -9,8 +9,8 @@ import postgres from 'postgres'
  *  2. SESIÓN: SET LOCAL request.jwt.claims = sub real del usuario que autorizó la conexión.
  *     auth.uid() lo lee y TODAS las policies RLS (auth_tenant_ids, is_super_admin) heredan
  *     exactamente el mismo aislamiento por subcuenta que la sesión web del usuario.
- *  3. TRANSACCIÓN: READ ONLY + DEFERRABLE INITIALLY DEFERRED — cualquier escritura (incluso un
- *     INSERT en una CTE o función) revienta la transacción entera.
+ *  3. TRANSACCIÓN: READ ONLY — cualquier escritura (incluso un INSERT en una CTE o función)
+ *     revienta la transacción entera.
  *  4. LÍMITES: statement_timeout (timeout), máximo de filas devueltas y tamaño máximo de consulta.
  *
  * El pool es UNO por proceso (como lib/vsl/db.ts): cada consulta crea su propia transacción
@@ -70,6 +70,8 @@ export function esConsultaSoloLectura(sqlText: string): boolean {
   return true
 }
 
+type FilaMcp = Record<string, unknown>
+
 export async function ejecutarSqlMcp(
   sqlText: string,
   opts: { userId: string; email: string; clientId: string }
@@ -85,24 +87,22 @@ export async function ejecutarSqlMcp(
   try {
     const sql = getClient()
     const claims = JSON.stringify({ sub: opts.userId, email: opts.email, role: 'authenticated' })
-    const rows = await sql.begin(
-      async (tx) => {
-        await tx.unsafe(`select set_config('request.jwt.claims', $1, true)`, [claims])
-        await tx.unsafe(`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
-        // CRÍTICO: POSTGRES_URL conecta como propietario de las tablas y el propietario SE SALTA
-        // RLS por defecto. Bajar al rol lector DENTRO de la transacción hace efectivo el RLS y
-        // restringe los privilegios a los GRANT SELECT de la migración.
-        await tx.unsafe(`set local role mcp_reader`)
-        // DEFERRABLE: si la transacción tarda en poder declararse read-only, espera en vez de fallar.
-        await tx.unsafe(`set local transaction_read_only = on`)
-        return tx.unsafe(consulta, [])
-      },
-      { readonly: true }
-    )
+    type Tx = Parameters<Parameters<typeof sql.begin>[0]>[0]
+    const rows = (await sql.begin(async (tx: Tx) => {
+      await tx.unsafe(`select set_config('request.jwt.claims', $1, true)`, [claims])
+      await tx.unsafe(`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
+      // CRÍTICO: POSTGRES_URL conecta como propietario de las tablas y el propietario SE SALTA
+      // RLS por defecto. Bajar al rol lector DENTRO de la transacción hace efectivo el RLS y
+      // restringe los privilegios a los GRANT SELECT de la migración.
+      await tx.unsafe(`set local role mcp_reader`)
+      // DEFERRABLE: si la transacción tarda en poder declararse read-only, espera en vez de fallar.
+      await tx.unsafe(`set local transaction_read_only = on`)
+      return tx.unsafe(consulta, []) as unknown as FilaMcp[]
+    })) as unknown as FilaMcp[]
     const truncated = rows.length > MAX_ROWS
     return {
       ok: true,
-      rows: truncated ? rows.slice(0, MAX_ROWS) : (rows as Record<string, unknown>[]),
+      rows: truncated ? rows.slice(0, MAX_ROWS) : rows,
       rowCount: rows.length,
       truncated,
       durationMs: Date.now() - started,
