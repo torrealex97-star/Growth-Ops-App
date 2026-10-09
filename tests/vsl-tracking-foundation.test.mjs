@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url'
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const migration = readFileSync(join(root, 'supabase/migrations/20261009010000_vsl_tracking_foundation.sql'), 'utf8')
 const accessMigration = readFileSync(join(root, 'supabase/migrations/20261009110000_vsl_tracking_access.sql'), 'utf8')
+const indexMigration = readFileSync(
+  join(root, 'supabase/migrations/20261009120000_vsl_tracking_fk_indexes.sql'),
+  'utf8'
+)
 
 test('tracking VSL es aditivo y conserva vsl_sessions como compatibilidad', () => {
   assert.doesNotMatch(migration, /DROP TABLE[^;]*vsl_sessions/i)
@@ -71,4 +75,15 @@ test('la telemetría no admite escrituras directas de anon ni authenticated', ()
   assert.match(accessMigration, /REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER/)
   assert.match(accessMigration, /GRANT SELECT ON TABLE public\.%I TO authenticated/)
   assert.match(accessMigration, /FOR SELECT TO authenticated/)
+})
+
+test('las relaciones VSL canónicas tienen índices de cobertura', () => {
+  for (const columns of [
+    'tenant_id, video_id',
+    'tenant_id, embed_location_id',
+    'tenant_id, legacy_session_id',
+    'tenant_id, video_version_id',
+  ]) {
+    assert.match(indexMigration, new RegExp(`\\(${columns}\\)`))
+  }
 })
