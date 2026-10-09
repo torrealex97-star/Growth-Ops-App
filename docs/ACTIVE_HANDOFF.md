@@ -1,4 +1,4 @@
-# CERRADO EN RAMA · Fase 3 — CRM y calendario operativo (9-oct-2026, Codex)
+# CERRADO, FUSIONADO Y DESPLEGADO · Fase 3 — CRM y calendario operativo (PR #434, 9-oct-2026, Codex)
 
 - **Rama:** `codex/phase3-crm-calendar`, desde `origin/main` posterior al cierre de la fase 2.
 - **Reclamación:** `crm/seguimiento`, `crm/agendas`, lead scoring y revisión guiada de los 9 vínculos
@@ -16,7 +16,9 @@
 - **Revisión humana:** la edición de venta permite enlazar/desenlazar únicamente agendas del mismo
   contacto; el servidor vuelve a comprobar tenant+contacto y audita el vínculo. No cambia importes.
 - **TESTED:** 13/13 focales PASS; typecheck PASS; quality completa PASS (suite y métricas); build de
-  producción PASS. Pendiente CI/merge, despliegue y smoke autenticado en móvil/escritorio.
+  producción PASS. CI completa, Secret Scan, Build, Smoke E2E, Release Gate y preview Vercel PASS.
+- **Producción:** PR #434 fusionada en `main` (`1b6b7996`); despliegue
+  `dpl_5KvkxBGvXXTnL8RgT32VFFPN5EtZ` READY y `app.scalixsystems.com` apunta a esa versión.
 - **Siguiente fase (requiere permiso tras despliegue):** fase 4, contenido/contratos/marketing, empezando
   por el recorrido real de importación de contratos y un smoke VSL/Contenido sin rehacer sistemas ya cerrados.
 
