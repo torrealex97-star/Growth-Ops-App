@@ -1,3 +1,28 @@
+# CERRADO, FUSIONADO, APLICADO Y DESPLEGADO · Barrido del backlog + Servidor MCP (10-oct-2026, Buffy)
+
+- **PR #440 FUSIONADA (`652b6cdc`):** foco al cerrar «Nueva agenda» y whitespace inválido en
+  `FinanceEvolution`. Despliegue production READY (`dpl_BhrcrFwe5UVETuc5YQF7J1C4X2sb`), sustituido
+  por el del MCP al minuto. Rama borrada.
+- **PR #421 FUSIONADA (`6005767c`):** servidor MCP Streamable HTTP con OAuth 2.1, PKCE S256,
+  códigos/refresh de un solo uso con rotación y secretos solo como hash; SQL read-only por
+  `mcp_reader` bajo el RLS existente; pantalla Configuración → Conexiones IA (MCP) con revocación
+  por sesión y por cliente. Rebase final sobre main (tras #440), CI VERDE del SHA `4bc256e3`
+  (6/6 jobs) y squash merge. Rama borrada.
+- **MIGRACIÓN `mcp_server_oauth_and_reader` aplicada en producción vía MCP Supabase (VERIFICADO):**
+  3 tablas OAuth con RLS por owner, rol `mcp_reader` (NOLOGIN) con 26 GRANT SELECT y 0 escrituras,
+  11 GRANT EXECUTE sobre helpers de Auth usados por policies. Registrada en `schema_migrations`
+  con la versión del fichero `20261009160000` (el tool MCP la grabó primero como
+  `20261010090656`; se corrigió con UPDATE para alinear el historial). Advisor security tras la
+  migración: 0 hallazgos NUEVOS imputables; preexisten tablas de backup sin policies,
+  `reservation_refund_requests` sin policies (real, pendiente) y warnings ya conocidos.
+- **Despliegue VERIFICADO: production READY `dpl_7Zg711rrmDu5ea4YxZaiU41mdUPu`** construido desde
+  `6005767c` con alias `app.scalixsystems.com`. Smoke anónimo: `/.well-known/oauth-protected-resource`
+  200 y `/api/mcp` devolviendo 503 controlado «Servidor MCP sin MCP_JWT_SECRET configurado» —
+  cero filtrado de datos sin secretos, comportamiento por diseño.
+- **BLOQUEO EXTERNO ÚNICO:** crear `MCP_JWT_SECRET` (≥32 chars) en Vercel (Production + Preview)
+  desde el dashboard — no debe pasar por el chat/repositorio (`docs/SECURITY_PRIVACY.md`). Es la
+  única pieza que falta para conectar ChatGPT/Claude (Fase 8 de la SPEC).
+
 # REVISIÓN DE TODO Y MEJORA — barrido del backlog de auditoría (10-oct-2026, Buffy)
 
 - **Rama única:** `codex/backlog-hygiene-fixes`, desde `origin/main` (post PR #435), mientras
