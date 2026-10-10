@@ -188,6 +188,9 @@ export default function AppointmentsPage() {
 
   // New appointment modal
   const [showNewModal, setShowNewModal] = useState(false)
+  // Foco de retorno al cerrar (criterio S1): el trigger es un Button referenciado, y al cerrar
+  // (Escape, Cerrar o guardado) el foco vuelve a «Nueva agenda» en vez de terminar en BODY.
+  const nuevaAgendaTriggerRef = useRef<HTMLButtonElement>(null)
   const [naContactSearch, setNaContactSearch] = useState('')
   const [naContactResults, setNaContactResults] = useState<Contact[]>([])
   const [naSelectedContact, setNaSelectedContact] = useState<Contact | null>(null)
@@ -1262,7 +1265,11 @@ export default function AppointmentsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <GoogleCalendarSettings tenant={tenant} />
-          <Button onClick={() => setShowNewModal(true)} className="bg-brand-600 hover:bg-brand-500">
+          <Button
+            ref={nuevaAgendaTriggerRef}
+            onClick={() => setShowNewModal(true)}
+            className="bg-brand-600 hover:bg-brand-500"
+          >
             <Plus className="w-4 h-4 mr-2" />
             Nueva agenda
           </Button>
@@ -1948,6 +1955,10 @@ export default function AppointmentsPage() {
           if (!o) {
             setShowNewModal(false)
             resetNewAppointmentForm()
+            // Devolver foco al trigger: Radix devuelve al elemento enfocado previo a abrir, pero
+            // este Dialog se controla por estado con onClick (sin Trigger) y en algunas apariciones
+            // el foco caía en BODY. Restauración explícita tras el commit del unmount.
+            requestAnimationFrame(() => nuevaAgendaTriggerRef.current?.focus())
           }
         }}
       >

@@ -1,3 +1,23 @@
+# REVISIÓN DE TODO Y MEJORA — barrido del backlog de auditoría (10-oct-2026, Buffy)
+
+- **Rama única:** `codex/backlog-hygiene-fixes`, desde `origin/main` (post PR #435), mientras
+  PR #421 (MCP) queda congelada esperando el merge humano — sigue CLEAN.
+- **Alcance (revisión enfocada, no auditoría completa):** cerrar los ítems del backlog PENDIENTES
+  accionables por código y verificar que los marcados P1 siguen abiertos de verdad antes de tocar.
+- **Verificado, NO bug actual (PENDIENTES desactualizado):** el P1 «Comisiones futuras API 500 por
+  payment_plans.sale_id» ya está RESUELTO (PR #379, 6-oct): la ruta lee `sales.payment_plan_id` y
+  consulta `payment_plans` por `id` acotado por tenant_id — el join roto ya no existe.
+- **Parcheado (commit `39b0b8c7`, PR #440 — https://github.com/torrealex97-star/growth-ops-app/pull/440):**
+  1. **Foco al cerrar «Nueva agenda»** (P2 S1 §6.8): el Dialog se controla por estado sin
+     `DialogTrigger`; al cerrar (Escape o guardado) el foco quedaba en BODY. El botón trigger
+     guarda ahora una `ref` y `onOpenChange` restaura el foco tras el unmount — teclado y ratón.
+  2. **Aviso de hidratación en FinanceEvolution:** eliminado el nodo de whitespace `{' '}` bajo
+     `<thead>` (contenido inválido de tabla reportado en S1 §6.8).
+- **Local NO ejecutable:** Node en `codex/backlog-hygiene-fixes` hereda el EPERM `uv_cwd` del
+  host; el gate de validación es el CI de PR #440.
+- **No tocado por decisión previa del usuario:** aislamiento de `resource_links` y aislamiento del
+  QA manual respecto de CI — siguen en el backlog como decisiones de diseño/operación.
+
 # CERRADO, FUSIONADO Y DESPLEGADO · Fase 3 — CRM y calendario operativo (PR #434, 9-oct-2026, Codex)
 
 - **Rama:** `codex/phase3-crm-calendar`, desde `origin/main` posterior al cierre de la fase 2.
