@@ -94,6 +94,12 @@ test('la lista de excepciones es cerrada y cada una tiene motivo escrito', () =>
     // `event_types` (F1, 23-sep): vocabulario de la PLATAFORMA — "una cita de GHL" significa lo
     // mismo para todos los clientes, así que no lleva tenant_id y solo el rol de servicio escribe.
     'event_types',
+    // Tablas OAuth del servidor MCP (10-oct): pertenecen a un USUARIO (owner_user_id), no a una
+    // subcuenta — el aislamiento por tenant de los DATOS que lee el modelo lo pone el RLS de
+    // negocio en el ejecutor, no estas tablas de credenciales.
+    'mcp_oauth_clients',
+    'mcp_oauth_codes',
+    'mcp_oauth_tokens',
     'resource_link_divisions',
     'resource_links',
     'roles',
