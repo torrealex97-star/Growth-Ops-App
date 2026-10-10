@@ -221,7 +221,6 @@ export function FinanceEvolution({
           <table className="w-full text-left">
             <caption className="sr-only">Cobros, gastos y resultado neto de los últimos seis meses</caption>
             <thead>
-              {' '}
               <tr className="text-muted-foreground">
                 <th className="py-2 font-medium" scope="col">
                   Mes
