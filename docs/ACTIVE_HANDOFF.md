@@ -101,8 +101,38 @@
 
 # EN CURSO · Servidor MCP propio — PR #421 (9-oct-2026, Codex)
 
-- **PR abierta:** https://github.com/torrealex97-star/growth-ops-app/pull/421 (`codex/mcp-server`).
-  **Quality Gate VERDE y PR MERGEABLE/CLEAN** en CI (run `37926663921`, SHA head): format, lint,
+- **PANTALLA «Conexiones IA (MCP)» nueva (10-oct-2026, INSPECTED en disco — validará el CI de la PR):**
+  Configuración → Conexiones IA (MCP) (`/settings/mcp`, tarjeta `manageOnly: false`) lista los
+  clientes OAuth autorizados por el usuario y sus sesiones con estado calculado en servidor
+  (activa/revocada/caducada, según el token y su refresh). Revocación: sesión individual o cliente
+  completo (revoca sus tokens y borra el cliente). Backend: `app/api/mcp/management/route.ts`
+  (GET + POST con sesión obligatoria, 401 sin usuario) y funciones de `lib/mcp/store.ts`
+  (`listarClientesDeUsuario`, `listarSesionesDeUsuario`, `revocarSesion`, `revocarCliente`) —
+  toda escritura filtrada por owner_user_id/client_ids propios; revocar el token invalida el
+  acceso al momento (validarAccessToken ya comprueba revoked_at en BD). Componente:
+  `components/settings/McpConexionesPanel.tsx`. Test de regresión añadido a
+  `tests/mcp-server.test.mjs`. **Sin run de quality gate local: este host no puede ejecutar Node
+  dentro del repo (EPERM uv_cwd, limitación conocida); son dos commits nuevos en la rama waiting
+  CI (`f25c04f7` pantalla, `060ec9ea` migración).**
+- **DRY-RUN de la migración `20261009160000` ejecutado contra producción vía MCP Supabase
+  (transacción `BEGIN…ROLLBACK`, VERIFICADO):** DDL completo sin errores con ROLLBACK limpio
+  (0 tablas residuales). Pruebas de comportamiento todas correctas: OWNER ve solo sus clientes OAuth
+  (1 de 2), OTHER_TENANT ve 0, ANON ve 0; `mcp_reader` con JWT del owner lee 805 contacts / 47 sales
+  / 682 citas SOLO del tenant suyo (74c7fab3), con JWT de otro usuario SIN tenant ve 0 filas —
+  aislamiento por tenant verificado.
+- **2 hallazgos corregidos en la migración durante el dry-run (TESTED en transacción):** (1) sin
+  `GRANT EXECUTE` sobre los helpers de Auth, las políticas RLS de negocio devolvían «permission
+  denied for function» al resolver; añade 11 GRANT EXECUTE explícitos (`auth_tenant_ids`,
+  `is_super_admin`, `is_admin_or_director`, `auth_can_manage_user`, `auth_can_view_user`,
+  `get_my_role`, `is_my_collaborator_row`, `is_my_collaborator_sale`, `is_team_scope_allowed`,
+  `is_tenant_admin`, `rol_recortado_en` — firmas verificadas contra `pg_proc`). Detalle: los 2
+  primeros no bastaban; el resto de helpers solo aparece al resolver una query real
+  con `SET LOCAL role = mcp_reader`.
+  **Commit `060ec9ea` en la rama, pending CI/PR merge.**
+- **PR abierta:** https://github.com/torrealex97-star/growth-ops-app/pull/421 (`codex/mcp-server`),
+  rebasada de nuevo sobre `origin/main` el 10-oct (10 commits nuevos de fases 2/3; conflicto del
+  tablero resuelto conservando ambos bloques). Run `37926663921` VERDE, y los runs posteriores al
+  verde quedaron CANCELADOS por `cancel-in-progress` (no son fallos). Estado del CI ahora: format, lint,
   typecheck, dead-code, unitarias (incluidas 10 regresiones MCP nuevas), build, smoke E2E, gitleaks
   y Release gate PASS. Rebasada dos veces sobre `origin/main` (conflictos del tablero resueltos
   conservando ambos bloques) y un push vacío para refrescar el rollup de `cancel-in-progress`.
