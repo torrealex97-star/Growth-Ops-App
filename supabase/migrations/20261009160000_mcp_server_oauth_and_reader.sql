@@ -113,5 +113,20 @@ BEGIN
   END LOOP;
 END $$;
 
--- El rol lector NO ve las tablas OAuth ni funciones de auth de Supabase.
+-- Las políticas RLS de negocio usan helpers de Auth por fila. El rol lector necesita EXECUTE
+-- sobre TODAS para que las políticas resuelvan sin "permission denied for function". La lista
+-- se mantiene explícita (coincide con las usadas en pg_policy, detectada el 9-oct-2026).
+GRANT EXECUTE ON FUNCTION public.auth_tenant_ids() TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.is_admin_or_director() TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.auth_can_manage_user(target_user_id uuid) TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.auth_can_view_user(target_user_id uuid) TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.get_my_role() TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.is_my_collaborator_row(p_contact_id uuid) TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.is_my_collaborator_sale(p_sale_id uuid) TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.is_team_scope_allowed() TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.is_tenant_admin(check_tenant_id uuid) TO mcp_reader;
+GRANT EXECUTE ON FUNCTION public.rol_recortado_en(check_tenant_id uuid) TO mcp_reader;
+
+-- El rol lector NO ve las tablas OAuth ni otras funciones de auth de Supabase.
 REVOKE ALL ON TABLE public.mcp_oauth_clients, public.mcp_oauth_codes, public.mcp_oauth_tokens FROM mcp_reader;
