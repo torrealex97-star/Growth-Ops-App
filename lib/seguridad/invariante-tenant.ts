@@ -40,13 +40,16 @@ export const EXCEPCIONES_SIN_TENANT: Readonly<Record<string, string>> = {
   event_types:
     'vocabulario de canonical_events.event_name: "una cita de GHL" significa lo mismo para todos los ' +
     'clientes. Sin tenant_id a propósito, y solo el rol de servicio escribe (F1)',
-  mcp_oauth_clients: 'credenciales OAuth del servidor MCP: pertenecen a un USUARIO (owner_user_id), no a
-    una subcuenta — el mismo usuario puede conectar desde cualquiera de las suyas y el acceso lo
-    filtran las policies RLS por owner',
-  mcp_oauth_codes: 'códigos de autorización MCP: viven bajo el client (via FK) y el user que los aprueba.
-    Scope de usuario, sin subcuenta',
-  mcp_oauth_tokens: 'tokens MCP: idem, con RLS por user_id y owner — la sesión MCP es del usuario, no de
-    una subcuenta; los datos que lee el servidor SÍ quedan acotados por tenant vía RLS de negocio',
+  mcp_oauth_clients:
+    'credenciales OAuth del servidor MCP: pertenecen a un USUARIO (owner_user_id), no a una ' +
+    'subcuenta — el mismo usuario puede conectar desde cualquiera de las suyas y el acceso lo ' +
+    'filtran las policies RLS por owner',
+  mcp_oauth_codes:
+    'códigos de autorización MCP: viven bajo el client (vía FK) y el user que los aprueba. ' +
+    'Scope de usuario, sin subcuenta',
+  mcp_oauth_tokens:
+    'tokens MCP: ídem, con RLS por user_id y owner — la sesión MCP es del usuario, no de una ' +
+    'subcuenta; los datos que lee el servidor SÍ quedan acotados por tenant vía RLS de negocio',
 }
 
 // NOTA PARA F0: `organizations` será la segunda tabla raíz sin tenant_id
