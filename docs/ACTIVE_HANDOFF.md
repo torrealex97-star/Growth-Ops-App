@@ -101,7 +101,7 @@
 
 # EN CURSO · Servidor MCP propio — PR #421 (9-oct-2026, Codex)
 
-- **PANTALLA «Conexiones IA (MCP)» nueva (10-oct-2026, INSPECTED en disco — validará el CI de la PR):**
+- **PANTALLA «Conexiones IA (MCP)» nueva (10-oct-2026, commits `f25c04f7`+`0195a2d3` en la PR — quality gate VERDE en CI, run `38034816882`):
   Configuración → Conexiones IA (MCP) (`/settings/mcp`, tarjeta `manageOnly: false`) lista los
   clientes OAuth autorizados por el usuario y sus sesiones con estado calculado en servidor
   (activa/revocada/caducada, según el token y su refresh). Revocación: sesión individual o cliente
@@ -111,9 +111,7 @@
   toda escritura filtrada por owner_user_id/client_ids propios; revocar el token invalida el
   acceso al momento (validarAccessToken ya comprueba revoked_at en BD). Componente:
   `components/settings/McpConexionesPanel.tsx`. Test de regresión añadido a
-  `tests/mcp-server.test.mjs`. **Sin run de quality gate local: este host no puede ejecutar Node
-  dentro del repo (EPERM uv_cwd, limitación conocida); son dos commits nuevos en la rama waiting
-  CI (`f25c04f7` pantalla, `060ec9ea` migración).**
+  `tests/mcp-server.test.mjs` (12º test de regresión del servidor MCP).
 - **DRY-RUN de la migración `20261009160000` ejecutado contra producción vía MCP Supabase
   (transacción `BEGIN…ROLLBACK`, VERIFICADO):** DDL completo sin errores con ROLLBACK limpio
   (0 tablas residuales). Pruebas de comportamiento todas correctas: OWNER ve solo sus clientes OAuth
@@ -128,13 +126,16 @@
   `is_tenant_admin`, `rol_recortado_en` — firmas verificadas contra `pg_proc`). Detalle: los 2
   primeros no bastaban; el resto de helpers solo aparece al resolver una query real
   con `SET LOCAL role = mcp_reader`.
-  **Commit `060ec9ea` en la rama, pending CI/PR merge.**
+  **Commit `060ec9ea` en la rama y CI VERDE (el dry-run fue contra producción vía MCP Supabase; la
+  aplicación definitiva pendiente tras fusionar).**
 - **PR abierta:** https://github.com/torrealex97-star/growth-ops-app/pull/421 (`codex/mcp-server`),
   rebasada de nuevo sobre `origin/main` el 10-oct (10 commits nuevos de fases 2/3; conflicto del
-  tablero resuelto conservando ambos bloques). Run `37926663921` VERDE, y los runs posteriores al
-  verde quedaron CANCELADOS por `cancel-in-progress` (no son fallos). Estado del CI ahora: format, lint,
-  typecheck, dead-code, unitarias (incluidas 10 regresiones MCP nuevas), build, smoke E2E, gitleaks
-  y Release gate PASS. Rebasada dos veces sobre `origin/main` (conflictos del tablero resueltos
+  tablero resuelto conservando ambos bloques) y pusheada con force-with-lease anclado al SHA remoto
+  conocido (el remoto solo tenía el mismo contenido MCP rebasado; nada ajeno se sobreescribió).
+  **CI VERDE en el SHA final `c1044923` (run `38034816882`):** format, lint, typecheck, dead-code,
+  unitarias (11 regresiones MCP), build, smoke E2E, gitleaks y Release gate PASS; PR MERGEABLE/CLEAN,
+  pendiente solo de revisión/merge humano. (El run del SHA `eab7584` anterior quedó CANCELADO por
+  `cancel-in-progress`; no era un fallo.) Rebases previos (conflictos del tablero resueltos
   conservando ambos bloques) y un push vacío para refrescar el rollup de `cancel-in-progress`.
   Correcciones durante CI: formato Prettier, tipo `McpTokenRow` ampliado y tipado del callback de
   `sql.begin` — sin cambios de lógica.
