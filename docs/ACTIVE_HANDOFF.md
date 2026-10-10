@@ -1,3 +1,20 @@
+# CERRADO EN RAMA · Advisors de Supabase cerrados en producción (10-oct-2026, Buffy)
+
+- **Migración `advisor_cleanup` (`20261010100000`) aplicada en producción vía MCP Supabase
+  (VERIFICADO):** (1) `reservation_refund_requests` pasa de RLS sin policies a una policy SELECT
+  por subcuenta con los helpers canónicos (`auth_tenant_ids`/`is_super_admin`) y GRANT SELECT a
+  `authenticated` — sin grants de escritura, la ruta de reembolsos sigue escribiendo solo por
+  `service_role` acotada por `requireTenant`; (2) `career.raw_immutability_guard` recreada con
+  `SET search_path = ''` (semántica del trigger idéntica: siga bloqueando UPDATE/DELETE sobre
+  `career.raw_items`). Registrada en `schema_migrations` con la versión del fichero (el tool la
+  graba con versión autogenerada; corregido con UPDATE, mismo procedimiento que la migración MCP).
+- **Advisor security re-ejecutado:** los 2 hallazgos objetivo desaparecieron y no se creó ninguno
+  nuevo. Quedan preexistentes, fuera del alcance de esta Labor: tabs de `backup_20260914` sin
+  policies (informativo, son backups), extensiones `vector`/`pg_trgm` en `public`, el definer
+  público de branding (intencional) y el aviso de leak-password protection (config de Auth).
+- **PR abierta con el fichero de migración + test de regresión (`tests/advisor-cleanup-migration.test.mjs`):**
+  pendiente de CI/merge; el SQL en producción ya está aplicado.
+
 # CERRADO, FUSIONADO, APLICADO Y DESPLEGADO · Barrido del backlog + Servidor MCP (10-oct-2026, Buffy)
 
 - **PR #440 FUSIONADA (`652b6cdc`):** foco al cerrar «Nueva agenda» y whitespace inválido en
