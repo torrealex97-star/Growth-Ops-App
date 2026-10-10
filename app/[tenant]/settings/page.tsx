@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  Bot,
   Activity,
   Shield,
   Package,
@@ -40,6 +41,15 @@ const SETTINGS_CARDS = [
     href: '/settings/integraciones',
     color: 'text-cyan-400',
     bg: 'bg-cyan-500/10',
+  },
+  {
+    title: 'Conexiones IA (MCP)',
+    description: 'Asistentes con acceso a tus datos y revocación de sesiones',
+    icon: Bot,
+    href: '/settings/mcp',
+    color: 'text-fuchsia-400',
+    bg: 'bg-fuchsia-500/10',
+    manageOnly: false,
   },
   {
     title: 'Datos de empresa',

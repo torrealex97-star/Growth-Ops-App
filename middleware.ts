@@ -34,6 +34,13 @@ const PUBLIC_PATHS = [
   // Meta/Instagram usan el mismo patrón: callback global, state firmado y comprobación de que la
   // sesión que vuelve es la que inició el flujo. No es una API pública de datos.
   '/api/oauth/meta/callback',
+  // Servidor MCP (JSON-RPC + OAuth 2.1). Se autentica con SU PROPIA pila: Bearer JWT para las
+  // herramientas y sesión Supabase SOLO en la pantalla de consentimiento de authorize, que la
+  // comprueba ella misma. Exigir cookie de sesión aquí rompería el canje de tokens de los
+  // clientes (ChatGPT/Claude no llevan cookies de la app).
+  '/api/mcp',
+  '/.well-known/oauth-protected-resource',
+  '/.well-known/oauth-authorization-server',
   // Página intermedia de "Ver como": se autentica con el token OTP de un solo uso que trae en la
   // query (el middleware NO puede exigir sesión — la sesión que crea es justamente su output).
   // Vive fuera de /[tenant] porque el layout del tenant exige sesión (punto muerto).

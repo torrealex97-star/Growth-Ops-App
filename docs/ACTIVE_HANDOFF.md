@@ -99,6 +99,59 @@
   build de producción PASS. Pendiente CI, merge, despliegue y una entrega real de GHL para evidencia
   externa; la API oficial exige `contacts.readonly` y token de subcuenta.
 
+# EN CURSO · Servidor MCP propio — PR #421 (9-oct-2026, Codex)
+
+- **PANTALLA «Conexiones IA (MCP)» nueva (10-oct-2026, commits `f25c04f7`+`0195a2d3` en la PR — quality gate VERDE en CI, run `38034816882`):
+  Configuración → Conexiones IA (MCP) (`/settings/mcp`, tarjeta `manageOnly: false`) lista los
+  clientes OAuth autorizados por el usuario y sus sesiones con estado calculado en servidor
+  (activa/revocada/caducada, según el token y su refresh). Revocación: sesión individual o cliente
+  completo (revoca sus tokens y borra el cliente). Backend: `app/api/mcp/management/route.ts`
+  (GET + POST con sesión obligatoria, 401 sin usuario) y funciones de `lib/mcp/store.ts`
+  (`listarClientesDeUsuario`, `listarSesionesDeUsuario`, `revocarSesion`, `revocarCliente`) —
+  toda escritura filtrada por owner_user_id/client_ids propios; revocar el token invalida el
+  acceso al momento (validarAccessToken ya comprueba revoked_at en BD). Componente:
+  `components/settings/McpConexionesPanel.tsx`. Test de regresión añadido a
+  `tests/mcp-server.test.mjs` (12º test de regresión del servidor MCP).
+- **DRY-RUN de la migración `20261009160000` ejecutado contra producción vía MCP Supabase
+  (transacción `BEGIN…ROLLBACK`, VERIFICADO):** DDL completo sin errores con ROLLBACK limpio
+  (0 tablas residuales). Pruebas de comportamiento todas correctas: OWNER ve solo sus clientes OAuth
+  (1 de 2), OTHER_TENANT ve 0, ANON ve 0; `mcp_reader` con JWT del owner lee 805 contacts / 47 sales
+  / 682 citas SOLO del tenant suyo (74c7fab3), con JWT de otro usuario SIN tenant ve 0 filas —
+  aislamiento por tenant verificado.
+- **2 hallazgos corregidos en la migración durante el dry-run (TESTED en transacción):** (1) sin
+  `GRANT EXECUTE` sobre los helpers de Auth, las políticas RLS de negocio devolvían «permission
+  denied for function» al resolver; añade 11 GRANT EXECUTE explícitos (`auth_tenant_ids`,
+  `is_super_admin`, `is_admin_or_director`, `auth_can_manage_user`, `auth_can_view_user`,
+  `get_my_role`, `is_my_collaborator_row`, `is_my_collaborator_sale`, `is_team_scope_allowed`,
+  `is_tenant_admin`, `rol_recortado_en` — firmas verificadas contra `pg_proc`). Detalle: los 2
+  primeros no bastaban; el resto de helpers solo aparece al resolver una query real
+  con `SET LOCAL role = mcp_reader`.
+  **Commit `060ec9ea` en la rama y CI VERDE (el dry-run fue contra producción vía MCP Supabase; la
+  aplicación definitiva pendiente tras fusionar).**
+- **PR abierta:** https://github.com/torrealex97-star/growth-ops-app/pull/421 (`codex/mcp-server`),
+  rebasada de nuevo sobre `origin/main` el 10-oct (10 commits nuevos de fases 2/3; conflicto del
+  tablero resuelto conservando ambos bloques) y pusheada con force-with-lease anclado al SHA remoto
+  conocido (el remoto solo tenía el mismo contenido MCP rebasado; nada ajeno se sobreescribió).
+  **CI VERDE en el SHA final `c1044923` (run `38034816882`):** format, lint, typecheck, dead-code,
+  unitarias (11 regresiones MCP), build, smoke E2E, gitleaks y Release gate PASS; PR MERGEABLE/CLEAN,
+  pendiente solo de revisión/merge humano. (El run del SHA `eab7584` anterior quedó CANCELADO por
+  `cancel-in-progress`; no era un fallo.) Rebases previos (conflictos del tablero resueltos
+  conservando ambos bloques) y un push vacío para refrescar el rollup de `cancel-in-progress`.
+  Correcciones durante CI: formato Prettier, tipo `McpTokenRow` ampliado y tipado del callback de
+  `sql.begin` — sin cambios de lógica.
+- **Alcance cubierto de la SPEC-02 MCP:** servidor único Streamable HTTP (no por tenant) con OAuth
+  2.1 por usuario — identidad verificada → memberships → RLS, sin service-role expuesto al modelo,
+  read-only real y aislamiento entre subcuentas por las policies existentes. Fase 0 audita el repo;
+  PR-1 y PR-2 de la SPEC quedan cubiertas por esta rama. El catálogo curado de herramientas de
+  negocio (Fase 3), la UI «Conectar con IA externa» en Integraciones (Fase 5), las pruebas reales
+  con Claude/ChatGPT (Fase 8) y la paridad de KPIs con el dashboard (Fase 9) quedan como PR-3,
+  PR-6, PR-7 y PR-9 siguientes — la spec pide además que el MVP no exponga SQL arbitrario, por lo
+  que `query_db` debe restringirse a las tools curadas antes de comercializar.
+- **Siguiente exacto:** TRAS FUSIONAR — (1) aplicar la migración con dry-run previo y registrarla;
+  (2) crear `MCP_JWT_SECRET` en Vercel (≥32 chars); (3) conectar el connector en ChatGPT/Claude
+  (Fase 8 de la SPEC) y documentar limitaciones de plan/aprobación; (4) PR-3 con el catálogo curado
+  reutilizando `lib/metrics` del repo. Docs en `docs/mcp-server.md`.
+
 # CERRADO EN RAMA · Histórico Calendly reanudable y atribución auditada (9-oct-2026, Codex)
 
 - **Rama única:** `codex/calendly-history-attribution`, desde `main` posterior al PR #424. Alcance:
@@ -119,7 +172,7 @@
   3 omitidas y 0 fallos; build de producción PASS. Pendiente CI, merge, despliegue y smoke autenticado
   del recorrido completo del botón.
 
-# CERRADO Y DESPLEGADO · Auditoría de estabilidad VSL (PR #424, 9-oct-2026, Codex)
+# CERRADO Y DESPLEGADO · Auditoría de estabilidad VSL (PR #424, 9-oct-2026, Codex)# CERRADO Y DESPLEGADO · Auditoría de estabilidad VSL (PR #424, 9-oct-2026, Codex)
 
 - **Rama:** `codex/vsl-production-audit`, creada desde `main` después del PR #423.
 - **Producción auditada:** escritorio y viewport móvil 390×844; consola sin errores, rutas de vídeos,
@@ -190,7 +243,6 @@
   contacto → `contact_attributions`. El histórico sin UTMs no es reconstruible; el pixel actual
   tiene 36 sesiones/touchpoints y cero vínculos deterministas a contacto, por lo que identity
   stitching first-party sigue siendo un bloque separado.
-
 # EN CURSO · VSL Precision Tracking + heatmaps (9-oct-2026, Codex)
 
 - **Rama única:** `codex/vsl-precision-tracking`. Alcance: dual-write del reproductor VSL,
