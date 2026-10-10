@@ -490,6 +490,27 @@
     "politicas": 3
   },
   {
+    "tabla": "mcp_oauth_clients",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "mcp_oauth_codes",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 1
+  },
+  {
+    "tabla": "mcp_oauth_tokens",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 1
+  },
+  {
     "tabla": "meta_custom_funnels",
     "tieneTenantId": true,
     "tenantIdNotNull": true,

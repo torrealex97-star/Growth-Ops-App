@@ -1,7 +1,9 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-09T09:08:10.858Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-10-10T10:00:52Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
+// Nota 10-oct: el generador no pudo correr en el host (EPERM); el bloque McpOauth* se insertó
+// replicando su formato exacto (verificado contra el OpenAPI vivo con service_role).
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
@@ -3840,6 +3842,114 @@ export type EsquemaPublico = {
         notes: string | undefined
         matched_collection_id: string | undefined
         created_by: string | undefined
+        created_at: string | undefined
+      }
+    }
+    McpOauthClients: {
+      Row: {
+        id: string | null
+        client_id: string | null
+        client_secret_hash: string | null
+        name: string | null
+        owner_user_id: string | null
+        redirect_uris: string[] | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        client_id: string | null | undefined
+        client_secret_hash: string | null | undefined
+        name: string | null | undefined
+        owner_user_id: string | null | undefined
+        redirect_uris: string[] | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        client_id: string | undefined
+        client_secret_hash: string | undefined
+        name: string | undefined
+        owner_user_id: string | null | undefined
+        redirect_uris: string[] | undefined
+        created_at: string | undefined
+      }
+    }
+    McpOauthCodes: {
+      Row: {
+        id: string | null
+        code_hash: string | null
+        client_id: string | null
+        user_id: string | null
+        redirect_uri: string | null
+        scope: string | null
+        code_challenge: string | null
+        code_challenge_method: string | null
+        expires_at: string | null
+        used_at: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        code_hash: string | null | undefined
+        client_id: string | null | undefined
+        user_id: string | null | undefined
+        redirect_uri: string | null | undefined
+        scope: string | null | undefined
+        code_challenge: string | null | undefined
+        code_challenge_method: string | null | undefined
+        expires_at: string | null | undefined
+        used_at: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        code_hash: string | undefined
+        client_id: string | undefined
+        user_id: string | undefined
+        redirect_uri: string | undefined
+        scope: string | undefined
+        code_challenge: string | undefined
+        code_challenge_method: string | undefined
+        expires_at: string | undefined
+        used_at: string | null | undefined
+        created_at: string | undefined
+      }
+    }
+    McpOauthTokens: {
+      Row: {
+        id: string | null
+        token_hash: string | null
+        refresh_hash: string | null
+        client_id: string | null
+        user_id: string | null
+        scope: string | null
+        expires_at: string | null
+        revoked_at: string | null
+        refresh_expires_at: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        token_hash: string | null | undefined
+        refresh_hash: string | null | undefined
+        client_id: string | null | undefined
+        user_id: string | null | undefined
+        scope: string | null | undefined
+        expires_at: string | null | undefined
+        revoked_at: string | null | undefined
+        refresh_expires_at: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        token_hash: string | undefined
+        refresh_hash: string | null | undefined
+        client_id: string | undefined
+        user_id: string | undefined
+        scope: string | undefined
+        expires_at: string | undefined
+        revoked_at: string | null | undefined
+        refresh_expires_at: string | null | undefined
         created_at: string | undefined
       }
     }
