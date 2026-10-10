@@ -1,3 +1,18 @@
+## Actualización 10-oct — barrido del backlog (Buffy/Codebuff)
+
+- [x] CERRADO (ya resuelto en PR #379 del 6-oct): **P1 · Comisiones futuras API 500** por
+  `payment_plans.sale_id` — la ruta hoy consulta `payment_plans` por `id` desde
+  `sales.payment_plan_id`; la entrada del backlog estaba desactualizada. Reabrir solo si Sentry
+  vuelve a mostrar un 500 en esa ruta.
+- [x] CERRADO — **Devolver foco al cerrar Nueva agenda** (P2): parcheado con ref al trigger y
+  restauración en `onOpenChange` (ambas rutas, teclado y ratón) — PR #440, pendiente QA visual en
+  staging antes de dar el journey por superado completo.
+- [x] CERRADO — **advertencia de hidratación en FinanceEvolution**: eliminado el nodo de
+  whitespace bajo `<thead>` (`components/finanzas/FinanceCharts.tsx`), origen del aviso de React.
+  El resto de avisos de ARIA/estructura de unit-economics siguen pendientes de reproducir.
+- [ ] Sin cambios: aislamiento de `resource_links`/tenant y aislamiento del QA manual de CI
+  (decisiones de diseño/operación del usuario, no código).
+
 ## Continuación de auditoría — menú y acceso (3-oct)
 
 - [ ] **P2 · Menú móvil:** abrir con Enter, foco debe entrar en el panel y quedar contenido; Escape cierra y devuelve foco. Actualmente Tab llega a Buscar detrás del overlay y Escape no cierra. Reutilizar Sheet existente; evidencia y archivos en última sección S1.
