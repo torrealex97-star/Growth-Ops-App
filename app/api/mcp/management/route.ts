@@ -13,12 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
-import {
-  listarClientesDeUsuario,
-  listarSesionesDeUsuario,
-  revocarCliente,
-  revocarSesion,
-} from '@/lib/mcp/store'
+import { listarClientesDeUsuario, listarSesionesDeUsuario, revocarCliente, revocarSesion } from '@/lib/mcp/store'
 
 export const runtime = 'nodejs'
 
@@ -38,7 +33,11 @@ async function userIdActual(): Promise<string | null> {
   return user?.id ?? null
 }
 
-function estadoSesion(row: { expires_at: string; revoked_at: string | null; refresh_expires_at: string | null }): 'activa' | 'revocada' | 'caducada' {
+function estadoSesion(row: {
+  expires_at: string
+  revoked_at: string | null
+  refresh_expires_at: string | null
+}): 'activa' | 'revocada' | 'caducada' {
   if (row.revoked_at) return 'revocada'
   const ahora = Date.now()
   if (new Date(row.expires_at).getTime() < ahora) {

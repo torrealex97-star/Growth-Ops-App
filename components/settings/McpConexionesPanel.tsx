@@ -70,7 +70,8 @@ export function McpConexionesPanel() {
   }, [load])
 
   async function revocarSesion(b: SesionMcp) {
-    if (!window.confirm(`¿Revocar la sesión de «${b.client_name ?? b.client_id}»? El cliente tendrá que reconectar.`)) return
+    if (!window.confirm(`¿Revocar la sesión de «${b.client_name ?? b.client_id}»? El cliente tendrá que reconectar.`))
+      return
     setCargandoRevocar(b.id)
     try {
       const r = await fetch('/api/mcp/management', {
@@ -144,7 +145,12 @@ export function McpConexionesPanel() {
           <h2 className="font-semibold text-foreground">Conexiones IA (MCP)</h2>
           <p className="text-muted-foreground mt-0.5 text-sm">
             Asistentes con acceso de solo lectura a los datos de tus subcuentas, autorizados por ti.
-            {sesiones.length > 0 && <span> — {numActivas} sesión{numActivas === 1 ? ' activa' : 's activas'}.</span>}
+            {sesiones.length > 0 && (
+              <span>
+                {' '}
+                — {numActivas} sesión{numActivas === 1 ? ' activa' : 's activas'}.
+              </span>
+            )}
           </p>
         </div>
       </div>
@@ -166,13 +172,11 @@ export function McpConexionesPanel() {
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-emerald-500" aria-hidden />
                       <p className="font-medium text-foreground">{cliente.name}</p>
-                      <span className="text-muted-foreground text-xs">
-                        desde {corto(cliente.created_at)}
-                      </span>
+                      <span className="text-muted-foreground text-xs">desde {corto(cliente.created_at)}</span>
                     </div>
                     <p className="text-muted-foreground mt-1 truncate text-xs">
-                      {sesionesCliente.filter((s) => s.estado === 'activa').length} de{' '}
-                      {sesionesCliente.length} sesión(es) activas
+                      {sesionesCliente.filter((s) => s.estado === 'activa').length} de {sesionesCliente.length}{' '}
+                      sesión(es) activas
                     </p>
                   </div>
                   <Button
