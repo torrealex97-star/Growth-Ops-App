@@ -132,3 +132,36 @@ test('registro dinámico: redirect_uri https y consentimiento fija la propiedad'
   // Y el consentimiento exige sesión Supabase.
   assert.match(authorize, /sesionActual/)
 })
+
+test('pantalla de conexiones MCP: revocación acotada al dueño y estado calculado en servidor', () => {
+  const store = leer('lib/mcp/store.ts')
+  const api = leer('app/api/mcp/management/route.ts')
+  const panel = leer('components/settings/McpConexionesPanel.tsx')
+
+  // El listado filtra por owner_user_id; las sesiones salen de los clientes PROPIOS (join client→owner).
+  assert.match(store, /listarClientesDeUsuario/)
+  assert.match(store, /\.eq\('owner_user_id', userId\)/)
+
+  // Revocar UNA sesión: UPDATE acotado por los client_ids propios y revoked_at nulo.
+  const revocarSesion = store.slice(store.indexOf('export async function revocarSesion'))
+  assert.match(revocarSesion, /\.in\('client_id', \[\.\.\.clientIds\]\)/)
+  assert.match(revocarSesion, /\.is\('revoked_at', null\)/)
+
+  // Revocar cliente: borra con owner_user_id en el filtro y verifica el borrado real (count).
+  const revocarCliente = store.slice(store.indexOf('export async function revocarCliente'))
+  assert.match(revocarCliente, /\.eq\('owner_user_id', userId\)/)
+  assert.match(revocarCliente, /count: 'exact'/)
+
+  // La API exige sesión (401 sin usuario) y revoca con el userId del SERVIDOR, nunca un id del cliente.
+  assert.match(api, /userIdActual/)
+  assert.match(api, /status: 401/)
+  assert.match(api, /revocarSesion\(userId/)
+  assert.match(api, /revocarCliente\(userId/)
+
+  // El estado (activa/revocada/caducada) lo calcula el servidor, no el navegador.
+  assert.match(api, /estadoSesion/)
+  // Y la tarjeta existe en Configuración.
+  const grid = leer('app/[tenant]/settings/page.tsx')
+  assert.match(grid, /settings\/mcp/)
+  assert.match(panel, /api\/mcp\/management/)
+})

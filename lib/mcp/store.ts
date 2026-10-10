@@ -154,3 +154,106 @@ export async function findAccessToken(tokenHash: string): Promise<McpTokenRow | 
   if (new Date(data.expires_at).getTime() < Date.now()) return null
   return data as McpTokenRow
 }
+
+// ---------------------------------------------------------------------------
+// Gestión por el usuario: clientes conectados y sesiones activas (pantalla de
+// Configuración). Todas las escrituras filtran por dueño/usuario, y la
+// autorización se reconfirma aquí por si una ruta olvida hacerlo:
+// el token de sesión ajena jamás es revocable desde otra cuenta.
+// ---------------------------------------------------------------------------
+
+export type McpClienteVisible = {
+  client_id: string
+  name: string
+  owner_user_id: string | null
+  redirect_uris: string[]
+  created_at: string
+}
+
+export type McpSesionVisible = {
+  id: string
+  client_id: string
+  client_name: string | null
+  scope: string
+  created_at: string
+  expires_at: string
+  revoked_at: string | null
+  refresh_expires_at: string | null
+}
+
+export async function listarClientesDeUsuario(userId: string): Promise<McpClienteVisible[]> {
+  const { data, error } = await sb()
+    .from('mcp_oauth_clients')
+    .select('client_id, name, owner_user_id, redirect_uris, created_at')
+    .eq('owner_user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) throw new Error(`No se pudieron listar los clientes MCP: ${error.message}`)
+  return (data ?? []) as McpClienteVisible[]
+}
+
+/** Sesiones (tokens emitidos) de los clientes QUE PERTENECEN a este usuario: la join client→owner
+ *  es el filtro de propiedad; una sesión de un cliente ajeno no entra aunque user_id coincidiera. */
+export async function listarSesionesDeUsuario(userId: string): Promise<McpSesionVisible[]> {
+  const clientes = await listarClientesDeUsuario(userId)
+  if (clientes.length === 0) return []
+  const clientIds = clientes.map((c) => c.client_id)
+  const { data, error } = await sb()
+    .from('mcp_oauth_tokens')
+    .select('id, client_id, scope, created_at, expires_at, revoked_at, refresh_expires_at')
+    .in('client_id', clientIds)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (error) throw new Error(`No se pudieron listar las sesiones MCP: ${error.message}`)
+  const nombre = new Map(clientes.map((c) => [c.client_id, c.name]))
+  return ((data ?? []) as Omit<McpSesionVisible, 'client_name'>[]).map((t) => ({
+    ...t,
+    client_name: nombre.get(t.client_id) ?? null,
+  }))
+}
+
+/** Revoca UNA sesión. Solo si el token pertenece a un cliente del que el usuario es dueño. */
+export async function revocarSesion(userId: string, tokenId: string): Promise<boolean> {
+  const clientes = await listarClientesDeUsuario(userId)
+  const clientIds = new Set(clientes.map((c) => c.client_id))
+  if (clientIds.size === 0) return false
+  // UPDATE acotado por client_id y revoked_at nulo: si la fila ya está revocada, el resultado
+  // es 0 filas y la función devuelve false (idempotente), no un error.
+  const { data, error } = await sb()
+    .from('mcp_oauth_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', tokenId)
+    .in('client_id', [...clientIds])
+    .is('revoked_at', null)
+    .select('id')
+  if (error) throw new Error(`No se pudo revocar la sesión MCP: ${error.message}`)
+  return (data ?? []).length > 0
+}
+
+/** Revoca el cliente COMPLETO: sus sesiones primero y luego el cliente. Idempotente. */
+export async function revocarCliente(userId: string, clientId: string): Promise<boolean> {
+  const clientes = await listarClientesDeUsuario(userId)
+  const cliente = clientes.find((c) => c.client_id === clientId)
+  if (!cliente) return false
+  const { data: sesiones, error: sesionesError } = await sb()
+    .from('mcp_oauth_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('client_id', clientId)
+    .is('revoked_at', null)
+    .select('id')
+  if (sesionesError) throw new Error(`No se pudo revocar el acceso MCP: ${sesionesError.message}`)
+  const { error: deleteError } = await sb()
+    .from('mcp_oauth_clients')
+    .delete()
+    .eq('client_id', clientId)
+    .eq('owner_user_id', userId)
+  if (deleteError) throw new Error(`No se pudo revocar el acceso MCP: ${deleteError.message}`)
+  // El DELETE con owner_user_id en el filtro es la prueba real de propiedad: si no era dueño queda
+  // la fila. Verificación por count:
+  const { count: quedan, error: verifyError } = await sb()
+    .from('mcp_oauth_clients')
+    .select('client_id', { count: 'exact', head: true })
+    .eq('client_id', clientId)
+  if (verifyError) throw new Error(`No se pudo verificar la revocación MCP: ${verifyError.message}`)
+  return quedan === 0
+}
